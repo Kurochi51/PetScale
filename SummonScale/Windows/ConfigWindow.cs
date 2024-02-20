@@ -51,8 +51,8 @@ public sealed class ConfigWindow : Window, IDisposable
     private bool fontChange;
 
     public unsafe ConfigWindow(SummonScale _plugin,
-        Configuration _config, 
-        DalamudPluginInterface _pluginInterface, 
+        Configuration _config,
+        DalamudPluginInterface _pluginInterface,
         IPluginLog _pluginLog) : base($"{nameof(SummonScale)} Config")
     {
         plugin = _plugin;
@@ -73,7 +73,7 @@ public sealed class ConfigWindow : Window, IDisposable
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void RequestCache(bool newCache) 
+    private void RequestCache(bool newCache)
         => plugin.requestedCache = newCache;
 
     public override void OnOpen()
@@ -97,7 +97,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         DrawComboBox("Sizes", sizeSelection, sizesWidth, out sizeSelection, sizeMap.Values, filter: false);
         ImGui.SameLine();
-        if (DrawIconButton(fontHandle: null, FontAwesomeIcon.Plus.ToIconString(),"AddButton", 1))
+        if (DrawIconButton(fontHandle: null, FontAwesomeIcon.Plus.ToIconString(), "AddButton", 1))
         {
             buttonPressed = true;
         }
@@ -160,7 +160,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 ImGui.TextUnformatted(sizeMap[item.SummonSize]);
                 ImGui.TableSetColumnIndex(3);
                 ImGui.SetCursorPosX(tableButtonAlingmentOffset);
-                if (DrawIconButton(fontHandle: null, buttonIcon,  buttonId+ buttonIcon))
+                if (DrawIconButton(fontHandle: null, buttonIcon, buttonId + buttonIcon))
                 {
                     summonData.RemoveAt(i);
                     pluginInterface.UiBuilder.AddNotification("Entry " + item.CharacterName + ", " + summonSelection + ", " + sizeMap[item.SummonSize] + " was removed.");
@@ -196,7 +196,7 @@ public sealed class ConfigWindow : Window, IDisposable
             ImGui.InputTextWithHint("##Filter" + label, "Filter..", ref temp, 30);
             if (tempList.Count > 0)
             {
-                tempList.Sort(2,tempList.Count-2,StringComparer.InvariantCulture);
+                tempList.Sort(2, tempList.Count - 2, StringComparer.InvariantCulture);
             }
         }
         var itemCount = tempList.Count;
@@ -351,7 +351,7 @@ public sealed class ConfigWindow : Window, IDisposable
             tableButtonAlingmentOffset = charaWidth + summonsWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
             if (SizeConstraints.HasValue)
             {
-                var newWidth = tableButtonAlingmentOffset + GetIconButtonSize(null, buttonIcon).X + ImGui.GetStyle().WindowPadding.X * 3 + ImGui.GetStyle().ScrollbarSize;
+                var newWidth = tableButtonAlingmentOffset + GetIconButtonSize(fontHandle: null, buttonIcon).X + (ImGui.GetStyle().WindowPadding.X * 3) + ImGui.GetStyle().ScrollbarSize;
                 SizeConstraints = new WindowSizeConstraints()
                 {
                     MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),
@@ -370,7 +370,7 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             config.SummonData = tempList;
         }
-        var x = tempList.Last(item => item.CharacterName.Equals("Other players",StringComparison.Ordinal));
+        var x = tempList.Last(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
         var lastX = tempList.LastIndexOf(x);
         log.Warning("Last entry of Other Players is at index: {i}", lastX);
         config.Save(pluginInterface);
