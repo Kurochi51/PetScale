@@ -13,8 +13,8 @@ namespace PetScale.Windows;
 
 public class DevWindow : Window
 {
-    private static readonly List<string> PrintLines = [];
-    private static readonly Queue<Pointer<GameObject>> RedrawObjects = [];
+    private static readonly List<string> PrintLines = new();
+    private static readonly Queue<Pointer<GameObject>> RedrawObjects = new();
 #pragma warning disable S4487
     private readonly IPluginLog log;
     private readonly DalamudPluginInterface pluginInterface;

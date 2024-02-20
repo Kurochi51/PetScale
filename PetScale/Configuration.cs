@@ -9,7 +9,7 @@ namespace PetScale;
 public class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 0;
-    public IList<PetStruct> PetData { get; set; } = [];
+    public IList<PetStruct> PetData { get; set; } = new List<PetStruct>();
 
 
     public void Save(DalamudPluginInterface pi) => pi.SavePluginConfig(this);

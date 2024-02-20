@@ -39,8 +39,8 @@ public sealed class PetScale : IDalamudPlugin
 
     private readonly CultureInfo cultureInfo = CultureInfo.InvariantCulture;
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
-    private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = [];
-    private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = [];
+    private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = new();
+    private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new();
     private readonly Stopwatch stopwatch = new();
     private readonly TimeSpan dictionaryExpirationTime = TimeSpan.FromMilliseconds(500); // used via .TotalMilliseconds
     private const string Others = "Other players";
