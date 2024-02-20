@@ -24,7 +24,7 @@ using PetScale.Enums;
 
 namespace PetScale;
 
-public sealed class SummonScale : IDalamudPlugin
+public sealed class PetScale : IDalamudPlugin
 {
     private const string CommandName = "/pscale";
 
@@ -38,8 +38,8 @@ public sealed class SummonScale : IDalamudPlugin
 
     private readonly CultureInfo cultureInfo = CultureInfo.InvariantCulture;
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
-    private readonly Dictionary<Pointer<BattleChara>, Pointer<Character>> summonDictionary = [];
-    private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petDictionary = [];
+    private readonly Dictionary<Pointer<BattleChara>, Pointer<Character>> activePetDictionary = [];
+    private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = [];
     private const string Others = "Other players";
 
     public WindowSystem WindowSystem { get; } = new("PetScale");
@@ -54,7 +54,7 @@ public sealed class SummonScale : IDalamudPlugin
     private unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharaListSpan;
     private string? playerName;
 
-    public SummonScale(DalamudPluginInterface _pluginInterface,
+    public PetScale(DalamudPluginInterface _pluginInterface,
         ICommandManager _commandManager,
         IFramework _framework,
         IPluginLog _log,
@@ -79,7 +79,7 @@ public sealed class SummonScale : IDalamudPlugin
 
         commandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open or close Summon Scale's config window.",
+            HelpMessage = "Open or close Pet Scale's config window.",
         });
 
         pluginInterface.UiBuilder.Draw += WindowSystem.Draw;
@@ -96,10 +96,10 @@ public sealed class SummonScale : IDalamudPlugin
         {
             return;
         }
-        ConfigWindow.summonMap.Add(nameof(SummonModel.AllSummons), SummonModel.AllSummons);
+        ConfigWindow.petMap.Add(nameof(PetModel.AllPets), PetModel.AllPets);
         foreach (var pet in petSheet)
         {
-            if (!Enum.TryParse(typeof(SummonRow), pet.RowId.ToString(cultureInfo), out var row) || row is not SummonRow)
+            if (!Enum.TryParse(typeof(PetRow), pet.RowId.ToString(cultureInfo), out var row) || row is not PetRow)
             {
                 continue;
             }
@@ -108,25 +108,25 @@ public sealed class SummonScale : IDalamudPlugin
             {
                 continue;
             }
-            petDictionary.Add(pet.Name, scales);
+            petSizeMap.Add(pet.Name, scales);
             var name = row.ToString();
             if (name.IsNullOrWhitespace())
             {
-                log.Debug("Invalid SummonRows {name}", row);
+                log.Debug("Invalid PetRow {name}", row);
                 continue;
             }
-            if (!Enum.TryParse(typeof(SummonModel), name, out var model) || model is not SummonModel modelValue)
+            if (!Enum.TryParse(typeof(PetModel), name, out var model) || model is not PetModel modelValue)
             {
-                log.Debug("SummonRows {name} couldn't map onto SummonModel", name);
+                log.Debug("PetRow {name} couldn't map onto PetModel", name);
                 continue;
             }
-            ConfigWindow.summonMap.Add(pet.Name, modelValue);
+            ConfigWindow.petMap.Add(pet.Name, modelValue);
         }
-        foreach (var entry in petDictionary)
+        foreach (var entry in petSizeMap)
         {
             log.Debug("{pet} with scales {small} - {meduim} - {large}", entry.Key, entry.Value.smallScale, entry.Value.mediumScale, entry.Value.largeScale);
         }
-        foreach (var entry in ConfigWindow.summonMap)
+        foreach (var entry in ConfigWindow.petMap)
         {
             log.Debug("{pet} with {model}", entry.Key, entry.Value);
         }
@@ -144,7 +144,7 @@ public sealed class SummonScale : IDalamudPlugin
                 playerName = null;
             }
             players.Clear();
-            foreach (var entry in config.SummonData.Select(item => item.CharacterName).Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach (var entry in config.PetData.Select(item => item.CharacterName).Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 players.Enqueue(entry);
             }
@@ -158,7 +158,7 @@ public sealed class SummonScale : IDalamudPlugin
         }
         PopulateDictionary();
         ParseDictionary(player);
-        summonDictionary.Clear();
+        activePetDictionary.Clear();
     }
 
     private unsafe void PopulateDictionary()
@@ -173,19 +173,19 @@ public sealed class SummonScale : IDalamudPlugin
             {
                 continue;
             }
-            var summonName = MemoryHelper.ReadStringNullTerminated((nint)chara.Value->Character.GameObject.GetName());
-            if (summonName.IsNullOrWhitespace() || !petDictionary.ContainsKey(summonName))
+            var petName = MemoryHelper.ReadStringNullTerminated((nint)chara.Value->Character.GameObject.GetName());
+            if (petName.IsNullOrWhitespace() || !petSizeMap.ContainsKey(petName))
             {
                 continue;
             }
-            if (!Enum.TryParse(typeof(SummonModel), chara.Value->Character.CharacterData.ModelCharaId.ToString(cultureInfo), out _))
+            if (!Enum.TryParse(typeof(PetModel), chara.Value->Character.CharacterData.ModelCharaId.ToString(cultureInfo), out _))
             {
                 continue;
             }
 #if DEBUG
             DevWindow.AddObjects(&chara.Value->Character.GameObject);
 #endif
-            summonDictionary.TryAdd(chara.Value, value: null);
+            activePetDictionary.TryAdd(chara.Value, value: null);
         }
         foreach (var chara in BattleCharaSpan)
         {
@@ -195,9 +195,9 @@ public sealed class SummonScale : IDalamudPlugin
             }
             if (chara.Value->Character.GameObject.ObjectKind is (byte)ObjectKind.Player && chara.Value->Character.GameObject.ObjectID is not 0xE0000000)
             {
-                foreach (var possiblePair in summonDictionary.Keys.Where(summon => summon.Value->Character.GameObject.OwnerID == chara.Value->Character.GameObject.ObjectID))
+                foreach (var possiblePair in activePetDictionary.Keys.Where(pet => pet.Value->Character.GameObject.OwnerID == chara.Value->Character.GameObject.ObjectID))
                 {
-                    summonDictionary[possiblePair] = &chara.Value->Character;
+                    activePetDictionary[possiblePair] = &chara.Value->Character;
                 }
             }
         }
@@ -205,69 +205,74 @@ public sealed class SummonScale : IDalamudPlugin
 
     private unsafe void ParseDictionary(PlayerCharacter player)
     {
-        foreach (var pair in summonDictionary)
+        foreach (var pair in activePetDictionary)
         {
-            var summon = pair.Key.Value;
+            var pet = pair.Key.Value;
             var character = pair.Value.Value;
-            if (character is null || summon is null)
+            if (character is null || pet is null)
             {
                 continue;
             }
-            var summonName = MemoryHelper.ReadStringNullTerminated((nint)summon->Character.GameObject.GetName());
+            var petName = MemoryHelper.ReadStringNullTerminated((nint)pet->Character.GameObject.GetName());
             var characterName = MemoryHelper.ReadStringNullTerminated((nint)character->GameObject.GetName());
-            if (characterName.IsNullOrWhitespace() || summonName.IsNullOrWhitespace())
+            if (characterName.IsNullOrWhitespace() || petName.IsNullOrWhitespace())
             {
                 continue;
             }
 #if DEBUG
-            DevWindow.Print(summonName + ": " + summon->Character.CharacterData.ModelCharaId + " owned by " + characterName);
+            DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + characterName);
 #endif
-            if (config.SummonData.Any(data => data.CharacterName.Equals(characterName, ordinalComparison) && (int)data.SummonID == summon->Character.CharacterData.ModelCharaId))
+            if (config.PetData.Any(data => data.CharacterName.Equals(characterName, ordinalComparison) && (int)data.PetID == pet->Character.CharacterData.ModelCharaId))
             {
-                ParseStruct(summon, characterName, summonName, summon->Character.CharacterData.ModelCharaId);
+                ParseStruct(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId);
                 continue;
             }
-            ParseGeneric(summon, characterName, summonName, summon->Character.CharacterData.ModelCharaId, character->GameObject.ObjectID == player.ObjectId);
+            ParseGeneric(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId, character->GameObject.ObjectID == player.ObjectId);
         }
     }
 
-    private unsafe void ParseGeneric(BattleChara* summon, string characterName, string summonName, int modelId, bool isLocalPlayer)
+    // ParseStruct will only match userData.Name to characterName and (int)data.SummonID to summon->ModelCharaId
+    // ParseGeneric will only match userData.SummonID that's AllSummons
+
+    private unsafe void ParseGeneric(BattleChara* pet, string characterName, string petName, int modelId, bool isLocalPlayer)
     {
-        foreach (var userData in config.SummonData)
+        foreach (var userData in config.PetData)
         {
             // redundant?
-            if (userData.SummonID is not SummonModel.AllSummons)
-            {
-                continue;
-            }
+            //if (userData.SummonID is not SummonModel.AllSummons)
+            //{
+            //    continue;
+            //}
             if ((!userData.CharacterName.Equals(characterName, ordinalComparison) || !isLocalPlayer)
                 && (!userData.CharacterName.Equals(Others, ordinalComparison) || isLocalPlayer))
             {
                 continue;
             }
-            if (!Enum.TryParse(typeof(SummonModel), modelId.ToString(cultureInfo), out _))
+            if (!Enum.TryParse(typeof(PetModel), modelId.ToString(cultureInfo), out _))
             {
                 continue;
             }
-            SetScale(summon, userData, summonName);
+            SetScale(pet, userData, petName);
+            log.Debug("Scale set by ParseGeneric for: {chara} - {pet} - {size}", characterName, petName, userData.PetSize.ToString());
         }
     }
 
-    private unsafe void ParseStruct(BattleChara* summon, string characterName, string summonName, int modelId)
+    private unsafe void ParseStruct(BattleChara* pet, string characterName, string petName, int modelId)
     {
-        foreach (var userData in config.SummonData)
+        foreach (var userData in config.PetData)
         {
             if (!characterName.Equals(userData.CharacterName, ordinalComparison))
             {
                 continue;
             }
-            if (!Enum.TryParse(typeof(SummonModel), modelId.ToString(cultureInfo), out var model)
-                || model is not SummonModel modelType
-                || modelType != userData.SummonID)
+            if (!Enum.TryParse(typeof(PetModel), modelId.ToString(cultureInfo), out var model)
+                || model is not PetModel modelType
+                || modelType != userData.PetID)
             {
                 continue;
             }
-            SetScale(summon, userData, summonName);
+            SetScale(pet, userData, petName);
+            log.Debug("Scale set by ParseStruct for: {chara} - {pet} - {size}", characterName, petName, userData.PetSize.ToString());
         }
     }
 
@@ -279,23 +284,23 @@ public sealed class SummonScale : IDalamudPlugin
         Utilities.CachePlayerList(playerObjectId, players, BattleCharaSpan);
     }
 
-    private unsafe void SetScale(BattleChara* summon, SummonStruct userData, string summonName)
+    private unsafe void SetScale(BattleChara* pet, PetStruct userData, string petName)
     {
-        var scale = userData.SummonSize switch
+        var scale = userData.PetSize switch
         {
-            SummonSize.SmallModelScale => petDictionary[summonName].smallScale,
-            SummonSize.MediumModelScale => petDictionary[summonName].mediumScale,
-            SummonSize.LargeModelScale => petDictionary[summonName].largeScale,
-            _ => throw new ArgumentException("Invalid SummonSize", paramName: userData.SummonSize.ToString()),
+            PetSize.SmallModelScale => petSizeMap[petName].smallScale,
+            PetSize.MediumModelScale => petSizeMap[petName].mediumScale,
+            PetSize.LargeModelScale => petSizeMap[petName].largeScale,
+            _ => throw new ArgumentException("Invalid PetSize", paramName: userData.PetSize.ToString()),
         };
-        utilities.SetScale(summon, scale);
+        utilities.SetScale(pet, scale);
     }
 
 #if DEBUG
     private unsafe void DevWindowThings()
     {
         DevWindow.IsOpen = true;
-        DevWindow.Print("Actor pair count: " + summonDictionary.Count.ToString(cultureInfo));
+        DevWindow.Print("Actor pair count: " + activePetDictionary.Count.ToString(cultureInfo));
     }
 #endif
 

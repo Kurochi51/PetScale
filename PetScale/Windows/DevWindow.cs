@@ -21,7 +21,7 @@ public class DevWindow : Window
 #pragma warning restore
     private bool redrawWanted = false;
 
-    public DevWindow(IPluginLog _pluginLog, DalamudPluginInterface _pluginInterface) : base("DevWindow - " + nameof(SummonScale))
+    public DevWindow(IPluginLog _pluginLog, DalamudPluginInterface _pluginInterface) : base("DevWindow - " + nameof(PetScale))
     {
         pluginInterface = _pluginInterface;
         log = _pluginLog;

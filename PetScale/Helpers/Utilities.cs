@@ -41,15 +41,15 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
         }
     }
 
-    public unsafe void SetScale(BattleChara* summon, float scale)
+    public unsafe void SetScale(BattleChara* pet, float scale)
     {
-        if (summon is null)
+        if (pet is null)
         {
             return;
         }
-        summon->Character.CharacterData.ModelScale = scale;
-        summon->Character.GameObject.Scale = scale;
-        var drawObject = summon->Character.GameObject.GetDrawObject();
+        pet->Character.CharacterData.ModelScale = scale;
+        pet->Character.GameObject.Scale = scale;
+        var drawObject = pet->Character.GameObject.GetDrawObject();
         if (drawObject is not null)
         {
             drawObject->Object.Scale.X = scale;

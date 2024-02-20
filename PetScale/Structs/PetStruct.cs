@@ -6,13 +6,13 @@ using PetScale.Enums;
 namespace PetScale.Structs;
 
 [StructLayout(LayoutKind.Auto)]
-public record struct SummonStruct
+public record struct PetStruct
 {
     public string CharacterName { get; set; }
-    public required SummonModel SummonID { get; set; }
-    public required SummonSize SummonSize { get; set; }
+    public required PetModel PetID { get; set; }
+    public required PetSize PetSize { get; set; }
 
-    public SummonStruct()
+    public PetStruct()
     {
         CharacterName = "Default";
     }

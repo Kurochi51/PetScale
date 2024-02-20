@@ -26,34 +26,33 @@ public sealed class ConfigWindow : Window, IDisposable
 {
     private readonly DalamudPluginInterface pluginInterface;
     private readonly Configuration config;
-    private readonly SummonScale plugin;
+    private readonly PetScale plugin;
     private readonly IPluginLog log;
-    private readonly Dictionary<SummonSize, string> sizeMap = new()
+    private readonly Dictionary<PetSize, string> sizeMap = new()
     {
-        { SummonSize.SmallModelScale,   "Small"     },
-        { SummonSize.MediumModelScale,  "Medium"    },
-        { SummonSize.LargeModelScale,   "Large"     },
+        { PetSize.SmallModelScale,   "Small"     },
+        { PetSize.MediumModelScale,  "Medium"    },
+        { PetSize.LargeModelScale,   "Large"     },
     };
     private readonly string buttonIcon;
     private readonly CancellationTokenSource cts;
     private readonly CancellationToken cToken;
-    private const string DefaultSummonSelection = "Summon";
+    private const string DefaultPetSelection = "Pet";
     private const string LongestCharaName = "WWWWWWWWWWWWWWW WWWWW";
-    private const string LongestSummonName = "Emerald Garuda";
     private const string LongestSize = "Medium";
 
-    public Dictionary<string, SummonModel> summonMap { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, PetModel> petMap { get; } = new(StringComparer.Ordinal);
     private Queue<string> players => plugin.players;
-    private IList<SummonStruct> summonData => config.SummonData;
+    private IList<PetStruct> petData => config.PetData;
 
-    private string summonSelection = DefaultSummonSelection, sizeSelection = "Size", charaName = "Characters";
-    private float tableButtonAlingmentOffset, charaWidth, summonsWidth, sizesWidth;
+    private string petSelection = DefaultPetSelection, longestPetName = string.Empty, sizeSelection = "Size", charaName = "Characters";
+    private float tableButtonAlingmentOffset, charaWidth, petWidth, sizesWidth;
     private bool fontChange;
 
-    public unsafe ConfigWindow(SummonScale _plugin,
+    public unsafe ConfigWindow(PetScale _plugin,
         Configuration _config,
         DalamudPluginInterface _pluginInterface,
-        IPluginLog _pluginLog) : base($"{nameof(SummonScale)} Config")
+        IPluginLog _pluginLog) : base($"{nameof(PetScale)} Config")
     {
         plugin = _plugin;
         config = _config;
@@ -93,7 +92,7 @@ public sealed class ConfigWindow : Window, IDisposable
         var buttonPressed = false;
         DrawComboBox("Characters", charaName, charaWidth, out charaName, players, filter: true);
         ImGui.SameLine();
-        DrawComboBox("Summons", summonSelection, summonsWidth, out summonSelection, summonMap.Keys, filter: false);
+        DrawComboBox("Pets", petSelection, petWidth, out petSelection, petMap.Keys, filter: false);
         ImGui.SameLine();
         DrawComboBox("Sizes", sizeSelection, sizesWidth, out sizeSelection, sizeMap.Values, filter: false);
         ImGui.SameLine();
@@ -103,15 +102,15 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         if (buttonPressed
         && !charaName.IsNullOrWhitespace() && !charaName.Equals("Characters", StringComparison.Ordinal)
-        && !summonSelection.Equals(DefaultSummonSelection, StringComparison.Ordinal)
-        && !sizeSelection.Equals(nameof(SummonSize), StringComparison.Ordinal))
+        && !petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal)
+        && !sizeSelection.Equals(nameof(PetSize), StringComparison.Ordinal))
         {
             CheckPossibleEntry();
         }
         DisplayEntries();
         DrawBottomButtons();
 #if DEBUG
-        DevWindow.Print("Summon entries: " + summonData.Count.ToString());
+        DevWindow.Print("Summon entries: " + petData.Count.ToString());
 #endif
     }
 
@@ -120,19 +119,19 @@ public sealed class ConfigWindow : Window, IDisposable
         var currentSize = new Vector2(ImGui.GetContentRegionAvail().X, ImGui.GetContentRegionAvail().Y - (36f * ImGuiHelpers.GlobalScale));
         using var tableBorderColor = ImRaii.PushColor(ImGuiCol.TableBorderStrong, ColorHelpers.RgbaVector4ToUint(*ImGui.GetStyleColorVec4(ImGuiCol.Border)));
         using var table = ImRaii.Table("UserEntries", 4, ImGuiTableFlags.ScrollY | ImGuiTableFlags.PreciseWidths | ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersOuter, currentSize);
-        if (!table || summonData.Count <= 0)
+        if (!table || petData.Count <= 0)
         {
             return;
         }
 
         ImGui.TableSetupColumn("Character", ImGuiTableColumnFlags.WidthFixed, charaWidth);
-        ImGui.TableSetupColumn("Summon", ImGuiTableColumnFlags.WidthFixed, summonsWidth);
-        ImGui.TableSetupColumn("SummonSize", ImGuiTableColumnFlags.WidthFixed, sizesWidth);
+        ImGui.TableSetupColumn("Pet", ImGuiTableColumnFlags.WidthFixed, petWidth);
+        ImGui.TableSetupColumn("PetSize", ImGuiTableColumnFlags.WidthFixed, sizesWidth);
         ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, GetIconButtonSize(fontHandle: null, buttonIcon).X);
         var itemRemoved = false;
         var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
         var clipperHeight = GetIconButtonSize(fontHandle: null, buttonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2);
-        clipper.Begin(summonData.Count, clipperHeight);
+        clipper.Begin(petData.Count, clipperHeight);
 
         var clipperBreak = false;
         while (clipper.Step())
@@ -143,27 +142,27 @@ public sealed class ConfigWindow : Window, IDisposable
             }
             for (var i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
             {
-                if (i >= summonData.Count)
+                if (i >= petData.Count)
                 {
                     clipperBreak = true;
                     break;
                 }
                 ImGui.TableNextRow();
                 var buttonId = "##" + i.ToString(CultureInfo.InvariantCulture);
-                var item = summonData[i];
+                var item = petData[i];
 
                 ImGui.TableSetColumnIndex(0);
                 ImGui.TextUnformatted(" " + item.CharacterName);
                 ImGui.TableSetColumnIndex(1);
-                ImGui.TextUnformatted(item.SummonID.ToString());
+                ImGui.TextUnformatted(item.PetID.ToString());
                 ImGui.TableSetColumnIndex(2);
-                ImGui.TextUnformatted(sizeMap[item.SummonSize]);
+                ImGui.TextUnformatted(sizeMap[item.PetSize]);
                 ImGui.TableSetColumnIndex(3);
                 ImGui.SetCursorPosX(tableButtonAlingmentOffset);
                 if (DrawIconButton(fontHandle: null, buttonIcon, buttonId + buttonIcon))
                 {
-                    summonData.RemoveAt(i);
-                    pluginInterface.UiBuilder.AddNotification("Entry " + item.CharacterName + ", " + summonSelection + ", " + sizeMap[item.SummonSize] + " was removed.");
+                    petData.RemoveAt(i);
+                    pluginInterface.UiBuilder.AddNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + sizeMap[item.PetSize] + " was removed.");
                     itemRemoved = true;
                 }
             }
@@ -287,37 +286,37 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void CheckPossibleEntry()
     {
-        var currentSummonSize = sizeMap.SingleOrDefault(x => x.Value.Equals(sizeSelection, StringComparison.OrdinalIgnoreCase));
-        if (currentSummonSize.Value is null)
+        var currentPetSize = sizeMap.SingleOrDefault(x => x.Value.Equals(sizeSelection, StringComparison.OrdinalIgnoreCase));
+        if (currentPetSize.Value is null)
         {
             throw new NotSupportedException();
         }
-        var currentSummonData = new SummonStruct()
+        var currentPetData = new PetStruct()
         {
             CharacterName = charaName,
-            SummonID = summonMap[summonSelection],
-            SummonSize = currentSummonSize.Key,
+            PetID = petMap[petSelection],
+            PetSize = currentPetSize.Key,
         };
-        var checkSummon = summonData
-            .SingleOrDefault(data => data.CharacterName.Equals(currentSummonData.CharacterName, StringComparison.Ordinal)
-            && data.SummonID == currentSummonData.SummonID);
-        if (currentSummonData.Equals(checkSummon))
+        var checkPet = petData
+            .SingleOrDefault(data => data.CharacterName.Equals(currentPetData.CharacterName, StringComparison.Ordinal)
+            && data.PetID == currentPetData.PetID);
+        if (currentPetData.Equals(checkPet))
         {
             return;
         }
-        if (checkSummon.IsDefault())
+        if (checkPet.IsDefault())
         {
-            summonData.Add(currentSummonData);
-            pluginInterface.UiBuilder.AddNotification("Entry " + currentSummonData.CharacterName + ", " + summonSelection + ", " + sizeMap[currentSummonSize.Key] + " was added.");
+            petData.Add(currentPetData);
+            pluginInterface.UiBuilder.AddNotification("Entry " + currentPetData.CharacterName + ", " + petSelection + ", " + sizeMap[currentPetSize.Key] + " was added.");
         }
-        else if (!checkSummon.SummonSize.Equals(currentSummonData.SummonSize))
+        else if (!checkPet.PetSize.Equals(currentPetData.PetSize))
         {
-            var index = summonData.IndexOf(checkSummon);
-            var entry = "Entry " + summonData[index].CharacterName + " with " + summonData[index].SummonID.ToString() + " changed size from " + sizeMap[summonData[index].SummonSize] + " to ";
-            checkSummon.SummonSize = currentSummonSize.Key;
-            summonData[index] = checkSummon;
-            log.Debug("Entry {name} with {summon} at {size} got changed.", checkSummon.CharacterName, summonSelection, checkSummon.SummonSize);
-            pluginInterface.UiBuilder.AddNotification(entry + sizeMap[summonData[index].SummonSize]);
+            var index = petData.IndexOf(checkPet);
+            var entry = "Entry " + petData[index].CharacterName + " with " + petData[index].PetID.ToString() + " changed size from " + sizeMap[petData[index].PetSize] + " to ";
+            checkPet.PetSize = currentPetSize.Key;
+            petData[index] = checkPet;
+            log.Debug("Entry {name} with {pet} at {size} got changed.", checkPet.CharacterName, petSelection, checkPet.PetSize);
+            pluginInterface.UiBuilder.AddNotification(entry + sizeMap[petData[index].PetSize]);
         }
         Save();
     }
@@ -343,15 +342,25 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void ResizeIfNeeded()
     {
-        if (fontChange || charaWidth is 0 || summonsWidth is 0 || sizesWidth is 0)
+        if (fontChange || charaWidth is 0 || petWidth is 0 || sizesWidth is 0)
         {
+            var currentSize = ImGui.CalcTextSize(longestPetName).X;
+            foreach (var petName in petMap.Select(pet => pet.Key))
+            {
+                var size = ImGui.CalcTextSize(petName).X;
+                if (size > currentSize)
+                {
+                    longestPetName = petName;
+                    currentSize = size;
+                }
+            }
             charaWidth = ImGui.CalcTextSize(LongestCharaName).X + (ImGui.GetStyle().FramePadding.X * 2);
-            summonsWidth = ImGui.CalcTextSize(LongestSummonName).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
+            petWidth = ImGui.CalcTextSize(longestPetName).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
             sizesWidth = ImGui.CalcTextSize(LongestSize).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
-            tableButtonAlingmentOffset = charaWidth + summonsWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
+            tableButtonAlingmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
             if (SizeConstraints.HasValue)
             {
-                var newWidth = tableButtonAlingmentOffset + GetIconButtonSize(fontHandle: null, buttonIcon).X + (ImGui.GetStyle().WindowPadding.X * 3) + ImGui.GetStyle().ScrollbarSize;
+                var newWidth = tableButtonAlingmentOffset + GetIconButtonSize(fontHandle: null, buttonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
                 SizeConstraints = new WindowSizeConstraints()
                 {
                     MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),
@@ -364,11 +373,11 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void Save()
     {
-        var tempList = summonData.Where(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal)).ToList();
-        tempList.AddRange(summonData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ToList());
-        if (tempList.Count == summonData.Count && summonData.ToHashSet().SetEquals(tempList))
+        var tempList = petData.Where(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal)).ToList();
+        tempList.AddRange(petData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ToList());
+        if (tempList.Count == petData.Count && petData.ToHashSet().SetEquals(tempList))
         {
-            config.SummonData = tempList;
+            config.PetData = tempList;
         }
         var x = tempList.Last(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
         var lastX = tempList.LastIndexOf(x);
