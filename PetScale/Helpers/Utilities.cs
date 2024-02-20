@@ -5,7 +5,6 @@ using Dalamud;
 using Lumina.Excel;
 using Dalamud.Memory;
 using Dalamud.Plugin.Services;
-using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Game.ClientState.Objects.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.Interop;
@@ -87,21 +86,5 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
                 queue.Enqueue(MemoryHelper.ReadStringNullTerminated((nint)chara.Value->Character.GameObject.GetName()));
             }
         }
-    }
-
-    public static IFontHandle GetFixedFontAwesomeIconFont(IFontAtlas atlas, float sizePx)
-    {
-        return atlas.NewDelegateFontHandle(
-            e => e.OnPreBuild(
-                tk =>
-                {
-                    var fixedFont = tk.AddFontAwesomeIconFont(new()
-                    {
-                        SizePx = sizePx,
-                        GlyphMinAdvanceX = sizePx,
-                        GlyphMaxAdvanceX = sizePx,
-                    });
-                    tk.SetFontScaleMode(fixedFont, FontScaleMode.UndoGlobalScale);
-                }));
     }
 }

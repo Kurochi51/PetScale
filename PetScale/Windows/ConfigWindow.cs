@@ -16,6 +16,7 @@ using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.ManagedFontAtlas;
+using Dalamud.Interface.Internal.Notifications;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Kernel;
 using PetScale.Structs;
 using PetScale.Enums;
@@ -100,12 +101,28 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             buttonPressed = true;
         }
-        if (buttonPressed
-        && !charaName.IsNullOrWhitespace() && !charaName.Equals("Characters", StringComparison.Ordinal)
-        && !petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal)
-        && !sizeSelection.Equals(nameof(PetSize), StringComparison.Ordinal))
+        if (buttonPressed)
         {
-            CheckPossibleEntry();
+            var error = false;
+            if (charaName.IsNullOrWhitespace() || charaName.Equals("Characters", StringComparison.Ordinal))
+            {
+                pluginInterface.UiBuilder.AddNotification("Invalid Character selected", "Pet Scale", NotificationType.Error);
+                error = true;
+            }
+            if (petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
+            {
+                pluginInterface.UiBuilder.AddNotification("Invalid Pet selected", "Pet Scale", NotificationType.Error);
+                error = true;
+            }
+            if (sizeSelection.Equals("Size", StringComparison.Ordinal))
+            {
+                pluginInterface.UiBuilder.AddNotification("Invalid Pet Size selected", "Pet Scale", NotificationType.Error);
+                error = true;
+            }
+            if (!error)
+            {
+                CheckPossibleEntry();
+            }
         }
         DisplayEntries();
         DrawBottomButtons();
@@ -373,15 +390,24 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void Save()
     {
-        var tempList = petData.Where(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal)).ToList();
-        tempList.AddRange(petData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ToList());
-        if (tempList.Count == petData.Count && petData.ToHashSet().SetEquals(tempList))
+        var tempEnumerable = petData.Where(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
+        if (tempEnumerable.Count() is not 0)
         {
-            config.PetData = tempList;
+            var tempList = tempEnumerable.ToList();
+            tempList.AddRange(petData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal).ToList());
+            if (tempList.Count == petData.Count && petData.ToHashSet().SetEquals(tempList))
+            {
+                config.PetData = tempList;
+            }
+            var otherEntry = tempList.Last(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
+            plugin.lastIndexOfOthers = tempList.LastIndexOf(otherEntry);
         }
-        var x = tempList.Last(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
-        var lastX = tempList.LastIndexOf(x);
-        log.Warning("Last entry of Other Players is at index: {i}", lastX);
+        else
+        {
+            var orderedList = petData.OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal).ToList();
+            config.PetData = orderedList;
+            plugin.lastIndexOfOthers = -1;
+        }
         config.Save(pluginInterface);
     }
 

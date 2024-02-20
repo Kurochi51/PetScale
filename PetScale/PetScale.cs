@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -38,13 +39,16 @@ public sealed class PetScale : IDalamudPlugin
 
     private readonly CultureInfo cultureInfo = CultureInfo.InvariantCulture;
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
-    private readonly Dictionary<Pointer<BattleChara>, Pointer<Character>> activePetDictionary = [];
+    private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = [];
     private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = [];
+    private readonly Stopwatch stopwatch = new();
+    private readonly TimeSpan dictionaryExpirationTime = TimeSpan.FromMilliseconds(500); // used via .TotalMilliseconds
     private const string Others = "Other players";
 
     public WindowSystem WindowSystem { get; } = new("PetScale");
-    public Queue<string> players { get; } = new(101);
+    public Queue<string> players { get; } = new(101); // 100 players + Others entry
     public bool requestedCache { get; set; } = true;
+    public int lastIndexOfOthers { get; set; } = -1;
 
     private ConfigWindow ConfigWindow { get; init; }
 #if DEBUG
@@ -84,9 +88,43 @@ public sealed class PetScale : IDalamudPlugin
 
         pluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         pluginInterface.UiBuilder.OpenConfigUi += ConfigWindow.Toggle;
+        clientState.TerritoryChanged += TerritoryChanged;
         framework.Update += OnFrameworkUpdate;
+        stopwatch.Start();
 
         _ = Task.Run(InitSheet);
+        InitData();
+    }
+
+    private void InitData()
+    {
+        if (config.PetData.Count is 0)
+        {
+            return;
+        }
+        var tempEnumerable = config.PetData.Where(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
+        if (tempEnumerable.Count() is not 0)
+        {
+            var tempList = tempEnumerable.ToList();
+            tempList.AddRange(config.PetData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal).ToList());
+            if (tempList.Count == config.PetData.Count && config.PetData.ToHashSet().SetEquals(tempList))
+            {
+                config.PetData = tempList;
+            }
+            var otherEntry = tempList.Last(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
+            lastIndexOfOthers = tempList.LastIndexOf(otherEntry);
+        }
+        else
+        {
+            var orderedList = config.PetData.OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal).ToList();
+            config.PetData = orderedList;
+            lastIndexOfOthers = -1;
+        }
+    }
+
+    private void TerritoryChanged(ushort obj)
+    {
+        stopwatch.Restart();
     }
 
     private void InitSheet()
@@ -148,6 +186,10 @@ public sealed class PetScale : IDalamudPlugin
             {
                 players.Enqueue(entry);
             }
+            if (stopwatch.IsRunning)
+            {
+                stopwatch.Stop();
+            }
             return;
         }
         if (requestedCache)
@@ -156,9 +198,19 @@ public sealed class PetScale : IDalamudPlugin
             RefreshCache(playerName, player.ObjectId);
             requestedCache = false;
         }
-        PopulateDictionary();
+        CheckDictionary(player, dictionaryExpirationTime.TotalMilliseconds);
+    }
+
+    private void CheckDictionary(PlayerCharacter player, double dictionaryRefreshTime)
+    {
+        if (stopwatch.Elapsed.TotalMilliseconds >= dictionaryRefreshTime)
+        {
+            stopwatch.Restart();
+            activePetDictionary.Clear();
+            PopulateDictionary();
+            return;
+        }
         ParseDictionary(player);
-        activePetDictionary.Clear();
     }
 
     private unsafe void PopulateDictionary()
@@ -185,7 +237,7 @@ public sealed class PetScale : IDalamudPlugin
 #if DEBUG
             DevWindow.AddObjects(&chara.Value->Character.GameObject);
 #endif
-            activePetDictionary.TryAdd(chara.Value, value: null);
+            activePetDictionary.Add(chara.Value, (null, false));
         }
         foreach (var chara in BattleCharaSpan)
         {
@@ -197,7 +249,7 @@ public sealed class PetScale : IDalamudPlugin
             {
                 foreach (var possiblePair in activePetDictionary.Keys.Where(pet => pet.Value->Character.GameObject.OwnerID == chara.Value->Character.GameObject.ObjectID))
                 {
-                    activePetDictionary[possiblePair] = &chara.Value->Character;
+                    activePetDictionary[possiblePair] = ((Pointer<Character>)(&chara.Value->Character), false);
                 }
             }
         }
@@ -207,9 +259,14 @@ public sealed class PetScale : IDalamudPlugin
     {
         foreach (var pair in activePetDictionary)
         {
+            if (pair.Value.petSet)
+            {
+                continue;
+            }
+
             var pet = pair.Key.Value;
-            var character = pair.Value.Value;
-            if (character is null || pet is null)
+            var character = pair.Value.character.Value;
+            if (pet is null || character is null)
             {
                 continue;
             }
@@ -222,58 +279,66 @@ public sealed class PetScale : IDalamudPlugin
 #if DEBUG
             DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + characterName);
 #endif
-            if (config.PetData.Any(data => data.CharacterName.Equals(characterName, ordinalComparison) && (int)data.PetID == pet->Character.CharacterData.ModelCharaId))
+            if (ParseStruct(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId, character->GameObject.ObjectID == player.ObjectId))
             {
-                ParseStruct(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId);
-                continue;
+                activePetDictionary[pair.Key] = (pair.Value.character, true);
             }
-            ParseGeneric(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId, character->GameObject.ObjectID == player.ObjectId);
         }
     }
 
-    // ParseStruct will only match userData.Name to characterName and (int)data.SummonID to summon->ModelCharaId
-    // ParseGeneric will only match userData.SummonID that's AllSummons
-
-    private unsafe void ParseGeneric(BattleChara* pet, string characterName, string petName, int modelId, bool isLocalPlayer)
+    private unsafe bool ParseStruct(BattleChara* pet, string characterName, string petName, int modelId, bool isLocalPlayer)
     {
-        foreach (var userData in config.PetData)
+        var petSet = false;
+        if (!Enum.TryParse(typeof(PetModel), modelId.ToString(cultureInfo), out var model) || model is not PetModel modelType)
         {
-            // redundant?
-            //if (userData.SummonID is not SummonModel.AllSummons)
-            //{
-            //    continue;
-            //}
-            if ((!userData.CharacterName.Equals(characterName, ordinalComparison) || !isLocalPlayer)
-                && (!userData.CharacterName.Equals(Others, ordinalComparison) || isLocalPlayer))
-            {
-                continue;
-            }
-            if (!Enum.TryParse(typeof(PetModel), modelId.ToString(cultureInfo), out _))
-            {
-                continue;
-            }
-            SetScale(pet, userData, petName);
-            log.Debug("Scale set by ParseGeneric for: {chara} - {pet} - {size}", characterName, petName, userData.PetSize.ToString());
+            return petSet;
         }
-    }
+        var allPets = config.PetData.Where(userData => userData.PetID is PetModel.AllPets).ToList();
 
-    private unsafe void ParseStruct(BattleChara* pet, string characterName, string petName, int modelId)
-    {
-        foreach (var userData in config.PetData)
+        var index = lastIndexOfOthers >= 0 ? lastIndexOfOthers : -1;
+        for (var i = 0; i <= index; i++)
         {
-            if (!characterName.Equals(userData.CharacterName, ordinalComparison))
+            var userData = config.PetData[i];
+            if (isLocalPlayer)
             {
                 continue;
             }
-            if (!Enum.TryParse(typeof(PetModel), modelId.ToString(cultureInfo), out var model)
-                || model is not PetModel modelType
-                || modelType != userData.PetID)
+            // General Pet for General Character
+            if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
+                && userData.PetID is PetModel.AllPets)
             {
-                continue;
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
-            SetScale(pet, userData, petName);
-            log.Debug("Scale set by ParseStruct for: {chara} - {pet} - {size}", characterName, petName, userData.PetSize.ToString());
+            // Specific Pet for General Character
+            if (userData.CharacterName.Equals(Others, ordinalComparison) && userData.PetID == modelType)
+            {
+                SetScale(pet, userData, petName);
+                petSet = true;
+            }
         }
+        for (var i = index + 1; i < config.PetData.Count; i++)
+        {
+            var userData = config.PetData[i];
+            if (!userData.CharacterName.Equals(characterName, ordinalComparison))
+            {
+                continue;
+            }
+            // General Pet for Specific Character
+            if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
+                && userData.PetID is PetModel.AllPets)
+            {
+                SetScale(pet, userData, petName);
+                petSet = true;
+            }
+            // Specific Pet for Specific Character
+            if (userData.CharacterName.Equals(characterName, ordinalComparison) && userData.PetID == modelType)
+            {
+                SetScale(pet, userData, petName);
+                petSet = true;
+            }
+        }
+        return petSet;
     }
 
     private void RefreshCache(string playerName, uint playerObjectId)
@@ -311,8 +376,10 @@ public sealed class PetScale : IDalamudPlugin
 
     public void Dispose()
     {
+        stopwatch.Stop();
         players.Clear();
         framework.Update -= OnFrameworkUpdate;
+        clientState.TerritoryChanged -= TerritoryChanged;
         pluginInterface.UiBuilder.OpenConfigUi -= ConfigWindow.Toggle;
         pluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
 
