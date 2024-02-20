@@ -12,10 +12,16 @@ using PetScale.Enums;
 
 namespace PetScale.Helpers;
 
-public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
+public class Utilities
 {
-    private readonly IDataManager dataManager = _dataManager;
-    private readonly IPluginLog log = _pluginLog;
+    private readonly IDataManager dataManager;
+    private readonly IPluginLog log;
+
+    public Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
+    {
+        dataManager = _dataManager;
+        log = _pluginLog;
+    }
 
     /// <summary>
     ///     Attempt to retrieve an <see cref="ExcelSheet{T}"/>, optionally in a specific <paramref name="language"/>.
