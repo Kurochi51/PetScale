@@ -17,7 +17,7 @@ using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.Interop;
-using PetScale.SummonsData;
+using PetScale.Structs;
 using PetScale.Helpers;
 using PetScale.Windows;
 using PetScale.Enums;

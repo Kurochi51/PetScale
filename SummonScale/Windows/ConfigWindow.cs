@@ -17,7 +17,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.ManagedFontAtlas;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Kernel;
-using PetScale.SummonsData;
+using PetScale.Structs;
 using PetScale.Enums;
 
 namespace PetScale.Windows;

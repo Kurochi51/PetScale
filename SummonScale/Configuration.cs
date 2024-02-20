@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 using Dalamud.Plugin;
 using Dalamud.Configuration;
-using PetScale.SummonsData;
+using PetScale.Structs;
 
 namespace PetScale;
 

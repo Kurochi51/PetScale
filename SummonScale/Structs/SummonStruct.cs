@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using Dalamud.Utility;
 using PetScale.Enums;
 
-namespace PetScale.SummonsData;
+namespace PetScale.Structs;
 
 [StructLayout(LayoutKind.Auto)]
 public record struct SummonStruct
