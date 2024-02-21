@@ -31,9 +31,9 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly IPluginLog log;
     private readonly Dictionary<PetSize, string> sizeMap = new()
     {
-        { PetSize.SmallModelScale,   "Small"     },
-        { PetSize.MediumModelScale,  "Medium"    },
-        { PetSize.LargeModelScale,   "Large"     },
+        { PetSize.SmallModelScale,   "Small" },
+        { PetSize.MediumModelScale,  "Medium"},
+        { PetSize.LargeModelScale,   "Large" },
     };
     private readonly string buttonIcon;
     private readonly CancellationTokenSource cts;
@@ -83,7 +83,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
     public override void OnClose()
     {
-        Save();
+        Save(save: true);
     }
 
     public override void Draw()
@@ -188,7 +188,7 @@ public sealed class ConfigWindow : Window, IDisposable
         clipper.Destroy();
         if (itemRemoved)
         {
-            Save();
+            Save(save: true);
         }
     }
 
@@ -335,7 +335,7 @@ public sealed class ConfigWindow : Window, IDisposable
             log.Debug("Entry {name} with {pet} at {size} got changed.", checkPet.CharacterName, petSelection, checkPet.PetSize);
             pluginInterface.UiBuilder.AddNotification(entry + sizeMap[petData[index].PetSize]);
         }
-        Save();
+        Save(save: true);
     }
 
     private void DrawBottomButtons()
@@ -346,6 +346,12 @@ public sealed class ConfigWindow : Window, IDisposable
         if (ImGui.Button("Update Character List"))
         {
             RequestCache(newCache: true);
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Clear All Entries"))
+        {
+            petData.Clear();
+            Save(save: true);
         }
         ImGui.SetCursorPos(originPos);
         ImGui.SetCursorPosX(ImGui.GetWindowContentRegionMax().X - ImGui.CalcTextSize("Close").X - 10f);
@@ -388,8 +394,17 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private void Save()
+    public void Save(bool save)
     {
+        if (petData.Count is 0)
+        {
+            plugin.lastIndexOfOthers = -1;
+            if (save)
+            {
+                config.Save(pluginInterface);
+            }
+            return;
+        }
         var tempEnumerable = petData.Where(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
         if (tempEnumerable.Count() is not 0)
         {
@@ -408,7 +423,10 @@ public sealed class ConfigWindow : Window, IDisposable
             config.PetData = orderedList;
             plugin.lastIndexOfOthers = -1;
         }
-        config.Save(pluginInterface);
+        if (save)
+        {
+            config.Save(pluginInterface);
+        }
     }
 
     private async void QueueColumnWidthChange(IFontHandle handle, ILockedImFont lockedFont)

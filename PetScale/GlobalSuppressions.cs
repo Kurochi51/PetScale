@@ -9,3 +9,4 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("Design", "MA0038:Make method static (deprecated, use CA1822 instead)", Justification = "Obsolete", Scope = "member", Target = "~M:PetScale.Helpers.Utilities.SetScale(FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara*,System.Single)")]
 [assembly: SuppressMessage("Design", "MA0041:Make property static (deprecated, use CA1822 instead)", Justification = "Obsolete", Scope = "member", Target = "~P:PetScale.PetScale.BattleCharaSpan")]
 [assembly: SuppressMessage("Design", "MA0016:Prefer using collection abstraction instead of implementation", Justification = "Not meant for public consumption", Scope = "member", Target = "~P:PetScale.Windows.ConfigWindow.petMap")]
+[assembly: SuppressMessage("Performance", "MA0066:Hash table unfriendly type is used in a hash table", Justification = "None", Scope = "member", Target = "~F:PetScale.PetScale.activePetDictionary")]

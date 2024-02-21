@@ -37,13 +37,21 @@ public sealed class PetScale : IDalamudPlugin
     private readonly IClientState clientState;
     private readonly Utilities utilities;
 
-    private readonly CultureInfo cultureInfo = CultureInfo.InvariantCulture;
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
     private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = new();
-    private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new();
+    private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new(StringComparer.OrdinalIgnoreCase);
     private readonly Stopwatch stopwatch = new();
     private readonly TimeSpan dictionaryExpirationTime = TimeSpan.FromMilliseconds(500); // used via .TotalMilliseconds
     private const string Others = "Other players";
+
+    private readonly Dictionary<PetRow, PetModel> petModelMap = new()
+    {
+        { PetRow.Bahamut,   PetModel.Bahamut    },
+        { PetRow.Phoenix,   PetModel.Phoenix    },
+        { PetRow.Ifrit,     PetModel.Ifrit      },
+        { PetRow.Titan,     PetModel.Titan      },
+        { PetRow.Garuda,    PetModel.Garuda     },
+    };
 
     public WindowSystem WindowSystem { get; } = new("PetScale");
     public Queue<string> players { get; } = new(101); // 100 players + Others entry
@@ -93,33 +101,7 @@ public sealed class PetScale : IDalamudPlugin
         stopwatch.Start();
 
         _ = Task.Run(InitSheet);
-        InitData();
-    }
-
-    private void InitData()
-    {
-        if (config.PetData.Count is 0)
-        {
-            return;
-        }
-        var tempEnumerable = config.PetData.Where(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
-        if (tempEnumerable.Count() is not 0)
-        {
-            var tempList = tempEnumerable.ToList();
-            tempList.AddRange(config.PetData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal).ToList());
-            if (tempList.Count == config.PetData.Count && config.PetData.ToHashSet().SetEquals(tempList))
-            {
-                config.PetData = tempList;
-            }
-            var otherEntry = tempList.Last(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
-            lastIndexOfOthers = tempList.LastIndexOf(otherEntry);
-        }
-        else
-        {
-            var orderedList = config.PetData.OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal).ToList();
-            config.PetData = orderedList;
-            lastIndexOfOthers = -1;
-        }
+        ConfigWindow.Save(save: false);
     }
 
     private void TerritoryChanged(ushort obj)
@@ -137,7 +119,7 @@ public sealed class PetScale : IDalamudPlugin
         ConfigWindow.petMap.Add(nameof(PetModel.AllPets), PetModel.AllPets);
         foreach (var pet in petSheet)
         {
-            if (!Enum.TryParse(typeof(PetRow), pet.RowId.ToString(cultureInfo), out var row) || row is not PetRow)
+            if (!Enum.IsDefined((PetRow)pet.RowId))
             {
                 continue;
             }
@@ -147,18 +129,7 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             petSizeMap.Add(pet.Name, scales);
-            var name = row.ToString();
-            if (name.IsNullOrWhitespace())
-            {
-                log.Debug("Invalid PetRow {name}", row);
-                continue;
-            }
-            if (!Enum.TryParse(typeof(PetModel), name, out var model) || model is not PetModel modelValue)
-            {
-                log.Debug("PetRow {name} couldn't map onto PetModel", name);
-                continue;
-            }
-            ConfigWindow.petMap.Add(pet.Name, modelValue);
+            ConfigWindow.petMap.Add(pet.Name, petModelMap[(PetRow)pet.RowId]);
         }
         foreach (var entry in petSizeMap)
         {
@@ -230,7 +201,7 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            if (!Enum.TryParse(typeof(PetModel), chara.Value->Character.CharacterData.ModelCharaId.ToString(cultureInfo), out _))
+            if (!Enum.IsDefined(typeof(PetModel), chara.Value->Character.CharacterData.ModelCharaId))
             {
                 continue;
             }
@@ -289,7 +260,8 @@ public sealed class PetScale : IDalamudPlugin
     private unsafe bool ParseStruct(BattleChara* pet, string characterName, string petName, int modelId, bool isLocalPlayer)
     {
         var petSet = false;
-        if (!Enum.TryParse(typeof(PetModel), modelId.ToString(cultureInfo), out var model) || model is not PetModel modelType)
+        var modelType = (PetModel)modelId;
+        if (!Enum.IsDefined(modelType))
         {
             return petSet;
         }
