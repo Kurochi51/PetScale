@@ -89,7 +89,7 @@ public sealed class ConfigWindow : Window, IDisposable
     public override void Draw()
     {
         ResizeIfNeeded();
-        ImGui.TextUnformatted("Amount of players: " + (players.Count > 2 ? players.Count - 1 : players.Count).ToString(CultureInfo.InvariantCulture));
+        ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
         DrawComboBox("Characters", charaName, charaWidth, out charaName, players, filter: true);
         ImGui.SameLine();
@@ -427,6 +427,19 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             config.Save(pluginInterface);
         }
+    }
+
+    private static int GetPlayerCount(int queueCount, bool loggedIn)
+    {
+        if (!loggedIn)
+        {
+            return 0;
+        }
+        return queueCount switch
+        {
+            < 2 => 0,
+            >= 2 => queueCount - 1,
+        };
     }
 
     private async void QueueColumnWidthChange(IFontHandle handle, ILockedImFont lockedFont)

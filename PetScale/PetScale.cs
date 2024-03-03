@@ -34,8 +34,8 @@ public sealed class PetScale : IDalamudPlugin
     private readonly ICommandManager commandManager;
     private readonly IFramework framework;
     private readonly IPluginLog log;
-    private readonly IClientState clientState;
     private readonly Utilities utilities;
+    public readonly IClientState clientState;
 
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
     private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = new();
@@ -97,16 +97,42 @@ public sealed class PetScale : IDalamudPlugin
         pluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         pluginInterface.UiBuilder.OpenConfigUi += ConfigWindow.Toggle;
         clientState.TerritoryChanged += TerritoryChanged;
+        clientState.Login += SetStopwatch;
+        clientState.Logout += SetStopwatch;
         framework.Update += OnFrameworkUpdate;
         stopwatch.Start();
 
         _ = Task.Run(InitSheet);
         ConfigWindow.Save(save: false);
+        QueueOnlyExistingData();
+    }
+
+    private void SetStopwatch()
+    {
+        playerName = clientState.LocalPlayer?.Name.TextValue;
+        if (clientState.IsLoggedIn)
+        {
+            stopwatch.Start();
+        }
+        else
+        {
+            QueueOnlyExistingData();
+            stopwatch.Stop();
+        }
     }
 
     private void TerritoryChanged(ushort obj)
     {
         stopwatch.Restart();
+    }
+
+    private void QueueOnlyExistingData()
+    {
+        players.Clear();
+        foreach (var entry in config.PetData.Select(item => item.CharacterName).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            players.Enqueue(entry);
+        }
     }
 
     private void InitSheet()
@@ -148,19 +174,6 @@ public sealed class PetScale : IDalamudPlugin
 #endif
         if (clientState is not { LocalPlayer: { } player })
         {
-            if (playerName is not null)
-            {
-                playerName = null;
-            }
-            players.Clear();
-            foreach (var entry in config.PetData.Select(item => item.CharacterName).Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                players.Enqueue(entry);
-            }
-            if (stopwatch.IsRunning)
-            {
-                stopwatch.Stop();
-            }
             return;
         }
         if (requestedCache)
@@ -350,7 +363,10 @@ public sealed class PetScale : IDalamudPlugin
     {
         stopwatch.Stop();
         players.Clear();
+
         framework.Update -= OnFrameworkUpdate;
+        clientState.Login -= SetStopwatch;
+        clientState.Logout -= SetStopwatch;
         clientState.TerritoryChanged -= TerritoryChanged;
         pluginInterface.UiBuilder.OpenConfigUi -= ConfigWindow.Toggle;
         pluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
