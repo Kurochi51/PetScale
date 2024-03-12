@@ -149,7 +149,7 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            var scales = (pet.Unknown9 / 100f, pet.Unknown10 / 100f, pet.Unknown11 / 100f);
+            var scales = (pet.Unknown5 / 100f, pet.Unknown6 / 100f, pet.Unknown7 / 100f);
             if (scales.Item1 >= 1 || scales.Item2 >= 1)
             {
                 continue;
@@ -261,9 +261,9 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
 #if DEBUG
-            DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + characterName + " size " + pet->Character.GameObject.Scale);
-            DevWindow.Print("Visibility: " + pet->Character.GameObject.GetDrawObject()->IsVisible);
-            DevWindow.Print("RenderFlags: " + pet->Character.GameObject.RenderFlags);
+            DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelSkeletonId + " owned by " + characterName + " size " + pet->Character.GameObject.Scale);
+            //DevWindow.Print("Visibility: " + pet->Character.GameObject.GetDrawObject()->IsVisible);
+            //DevWindow.Print("RenderFlags: " + pet->Character.GameObject.RenderFlags);
 #endif
             if (ParseStruct(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId, character->GameObject.ObjectID == player.ObjectId))
             {
