@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net7.0-windows7.0": {
+    "net8.0-windows7.0": {
       "DalamudPackager": {
         "type": "Direct",
         "requested": "[2.1.12, )",
@@ -10,9 +10,9 @@
       },
       "Meziantou.Analyzer": {
         "type": "Direct",
-        "requested": "[2.0.141, )",
-        "resolved": "2.0.141",
-        "contentHash": "SnQIdjQeJnc/3xmKSNvIAFHAPwV+LTXuf4QesfdiNrntnL5oCoBIKAn6194JeMj/nWoCSwRnWJybTsZAS2u51Q=="
+        "requested": "[2.0.145, )",
+        "resolved": "2.0.145",
+        "contentHash": "BPgr0uG1JpLaDE/dIDK04cngtwzcwNEa3MJROJ+HjOal4E5EBjfTsyPOr/1yyjB2FTCmg2yIAqGteDqSykJwng=="
       }
     }
   }

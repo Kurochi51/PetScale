@@ -409,7 +409,7 @@ public sealed class ConfigWindow : Window, IDisposable
         if (tempEnumerable.Count() is not 0)
         {
             var tempList = tempEnumerable.ToList();
-            tempList.AddRange(petData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal).ToList());
+            tempList.AddRange([.. petData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal)]);
             if (tempList.Count == petData.Count && petData.ToHashSet().SetEquals(tempList))
             {
                 config.PetData = tempList;

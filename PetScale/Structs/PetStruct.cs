@@ -18,7 +18,5 @@ public record struct PetStruct
     }
 
     public readonly bool IsDefault()
-    {
-        return CharacterName.IsNullOrWhitespace() || CharacterName.Equals("Default", System.StringComparison.Ordinal);
-    }
+        => CharacterName.IsNullOrWhitespace() || CharacterName.Equals("Default", System.StringComparison.Ordinal);
 }

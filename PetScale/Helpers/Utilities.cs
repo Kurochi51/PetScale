@@ -12,16 +12,10 @@ using PetScale.Enums;
 
 namespace PetScale.Helpers;
 
-public class Utilities
+public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
 {
-    private readonly IDataManager dataManager;
-    private readonly IPluginLog log;
-
-    public Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
-    {
-        dataManager = _dataManager;
-        log = _pluginLog;
-    }
+    private readonly IDataManager dataManager = _dataManager;
+    private readonly IPluginLog log = _pluginLog;
 
     /// <summary>
     ///     Attempt to retrieve an <see cref="ExcelSheet{T}"/>, optionally in a specific <paramref name="language"/>.
@@ -52,8 +46,8 @@ public class Utilities
         {
             return;
         }
-        pet->Character.CharacterData.ModelScale = scale;
         pet->Character.GameObject.Scale = scale;
+        pet->Character.CharacterData.ModelScale = scale;
         var drawObject = pet->Character.GameObject.GetDrawObject();
         if (drawObject is not null)
         {
@@ -75,7 +69,7 @@ public class Utilities
         *ActorDrawState(actor) ^= DrawState.Invisibility;
     }
 
-    public static unsafe void CachePlayerList(uint playerObjectId, Queue<string> queue, Span<Pointer<BattleChara>> CharacterSpan)
+    public unsafe void CachePlayerList(uint playerObjectId, Queue<string> queue, Span<Pointer<BattleChara>> CharacterSpan)
     {
         foreach (var chara in CharacterSpan)
         {
@@ -92,5 +86,14 @@ public class Utilities
                 queue.Enqueue(MemoryHelper.ReadStringNullTerminated((nint)chara.Value->Character.GameObject.GetName()));
             }
         }
+    }
+
+    public unsafe bool PetVisible(BattleChara* pet)
+    {
+        if (pet is null || pet->Character.GameObject.GetDrawObject() is null)
+        {
+            return false;
+        }
+        return pet->Character.GameObject.GetDrawObject()->IsVisible;
     }
 }

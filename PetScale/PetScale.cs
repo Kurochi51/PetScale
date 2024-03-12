@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Diagnostics;
-using System.Globalization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
@@ -11,7 +10,7 @@ using Dalamud.Utility;
 using Dalamud.Game.Command;
 using Dalamud.Plugin.Services;
 using Dalamud.Interface.Windowing;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.GeneratedSheets2;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
@@ -38,7 +37,7 @@ public sealed class PetScale : IDalamudPlugin
     public readonly IClientState clientState;
 
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
-    private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = new();
+    private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = [];
     private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new(StringComparer.OrdinalIgnoreCase);
     private readonly Stopwatch stopwatch = new();
     private readonly TimeSpan dictionaryExpirationTime = TimeSpan.FromMilliseconds(500); // used via .TotalMilliseconds
@@ -85,6 +84,7 @@ public sealed class PetScale : IDalamudPlugin
 #if DEBUG
         DevWindow = new DevWindow(log, pluginInterface);
         WindowSystem.AddWindow(DevWindow);
+        dictionaryExpirationTime = TimeSpan.FromMilliseconds(20);
 #endif
 
         WindowSystem.AddWindow(ConfigWindow);
@@ -261,7 +261,9 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
 #if DEBUG
-            DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + characterName);
+            DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + characterName + " size " + pet->Character.GameObject.Scale);
+            DevWindow.Print("Visibility: " + pet->Character.GameObject.GetDrawObject()->IsVisible);
+            DevWindow.Print("RenderFlags: " + pet->Character.GameObject.RenderFlags);
 #endif
             if (ParseStruct(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId, character->GameObject.ObjectID == player.ObjectId))
             {
@@ -331,7 +333,7 @@ public sealed class PetScale : IDalamudPlugin
         players.Clear();
         players.Enqueue(playerName);
         players.Enqueue(Others);
-        Utilities.CachePlayerList(playerObjectId, players, BattleCharaSpan);
+        utilities.CachePlayerList(playerObjectId, players, BattleCharaSpan);
     }
 
     private unsafe void SetScale(BattleChara* pet, PetStruct userData, string petName)
@@ -350,7 +352,7 @@ public sealed class PetScale : IDalamudPlugin
     private unsafe void DevWindowThings()
     {
         DevWindow.IsOpen = true;
-        DevWindow.Print("Actor pair count: " + activePetDictionary.Count.ToString(cultureInfo));
+        DevWindow.Print("Actor pair count: " + activePetDictionary.Count.ToString());
     }
 #endif
 
