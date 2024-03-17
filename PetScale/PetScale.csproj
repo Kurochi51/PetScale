@@ -30,6 +30,8 @@
         </ContentWithTargetPath>
     </ItemGroup>
 
+    <!--D:\yes\Dalamud\bin\Release\-->
+    <!--$(appdata)\XIVLauncher\addon\Hooks\dev\-->
     <PropertyGroup>
         <DalamudLibPath Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(appdata)\XIVLauncher\addon\Hooks\dev\</DalamudLibPath>
         <DalamudLibPath Condition="$([MSBuild]::IsOSPlatform('Linux'))">$(HOME)/.xlcore/dalamud/Hooks/dev/</DalamudLibPath>

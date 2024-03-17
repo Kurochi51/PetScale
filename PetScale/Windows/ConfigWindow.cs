@@ -16,6 +16,7 @@ using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.ManagedFontAtlas;
+using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Internal.Notifications;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Kernel;
 using PetScale.Structs;
@@ -29,6 +30,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly Configuration config;
     private readonly PetScale plugin;
     private readonly IPluginLog log;
+    private readonly INotificationManager notificationManager;
     private readonly Dictionary<PetSize, string> sizeMap = new()
     {
         { PetSize.SmallModelScale,   "Small" },
@@ -38,6 +40,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly string buttonIcon;
     private readonly CancellationTokenSource cts;
     private readonly CancellationToken cToken;
+    private readonly Notification notification = new();
     private const string DefaultPetSelection = "Pet";
     private const string LongestCharaName = "WWWWWWWWWWWWWWW WWWWW";
     private const string LongestSize = "Medium";
@@ -53,12 +56,14 @@ public sealed class ConfigWindow : Window, IDisposable
     public unsafe ConfigWindow(PetScale _plugin,
         Configuration _config,
         DalamudPluginInterface _pluginInterface,
-        IPluginLog _pluginLog) : base($"{nameof(PetScale)} Config")
+        IPluginLog _pluginLog,
+        INotificationManager _notificationManager) : base($"{nameof(PetScale)} Config")
     {
         plugin = _plugin;
         config = _config;
         pluginInterface = _pluginInterface;
         log = _pluginLog;
+        notificationManager = _notificationManager;
         SizeConstraints = new WindowSizeConstraints()
         {
             MinimumSize = new Vector2(470, 365),
@@ -106,17 +111,17 @@ public sealed class ConfigWindow : Window, IDisposable
             var error = false;
             if (charaName.IsNullOrWhitespace() || charaName.Equals("Characters", StringComparison.Ordinal))
             {
-                pluginInterface.UiBuilder.AddNotification("Invalid Character selected", "Pet Scale", NotificationType.Error);
+                CreateNotification("Invalid Character selected", PetScale.PluginName, NotificationType.Error);
                 error = true;
             }
             if (petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
             {
-                pluginInterface.UiBuilder.AddNotification("Invalid Pet selected", "Pet Scale", NotificationType.Error);
+                CreateNotification("Invalid Pet selected", PetScale.PluginName, NotificationType.Error);
                 error = true;
             }
             if (sizeSelection.Equals("Size", StringComparison.Ordinal))
             {
-                pluginInterface.UiBuilder.AddNotification("Invalid Pet Size selected", "Pet Scale", NotificationType.Error);
+                CreateNotification("Invalid Pet Size selected", PetScale.PluginName, NotificationType.Error);
                 error = true;
             }
             if (!error)
@@ -179,7 +184,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 if (DrawIconButton(fontHandle: null, buttonIcon, buttonId + buttonIcon))
                 {
                     petData.RemoveAt(i);
-                    pluginInterface.UiBuilder.AddNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + sizeMap[item.PetSize] + " was removed.");
+                    CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + sizeMap[item.PetSize] + " was removed.", PetScale.PluginName);
                     itemRemoved = true;
                 }
             }
@@ -324,7 +329,9 @@ public sealed class ConfigWindow : Window, IDisposable
         if (checkPet.IsDefault())
         {
             petData.Add(currentPetData);
-            pluginInterface.UiBuilder.AddNotification("Entry " + currentPetData.CharacterName + ", " + petSelection + ", " + sizeMap[currentPetSize.Key] + " was added.");
+            CreateNotification(
+                "Entry " + currentPetData.CharacterName + ", " + petSelection + ", " + sizeMap[currentPetSize.Key] + " was added.",
+                PetScale.PluginName);
         }
         else if (!checkPet.PetSize.Equals(currentPetData.PetSize))
         {
@@ -333,7 +340,7 @@ public sealed class ConfigWindow : Window, IDisposable
             checkPet.PetSize = currentPetSize.Key;
             petData[index] = checkPet;
             log.Debug("Entry {name} with {pet} at {size} got changed.", checkPet.CharacterName, petSelection, checkPet.PetSize);
-            pluginInterface.UiBuilder.AddNotification(entry + sizeMap[petData[index].PetSize]);
+            CreateNotification(entry + sizeMap[petData[index].PetSize], PetScale.PluginName);
         }
         Save(save: true);
     }
@@ -449,6 +456,14 @@ public sealed class ConfigWindow : Window, IDisposable
             await Task.Delay((int)TimeSpan.FromSeconds(1).TotalMilliseconds, cToken).ConfigureAwait(false);
         }
         fontChange = true;
+    }
+
+    private void CreateNotification(string content, string title, NotificationType type = NotificationType.None)
+    {
+        notification.Content = content;
+        notification.Title = title;
+        notification.Type = type;
+        notificationManager.AddNotification(notification);
     }
 
     public void Dispose()

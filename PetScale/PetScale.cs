@@ -27,6 +27,7 @@ namespace PetScale;
 public sealed class PetScale : IDalamudPlugin
 {
     private const string CommandName = "/pscale";
+    public const string PluginName = "Pet Scale";
 
     private readonly DalamudPluginInterface pluginInterface;
     private readonly Configuration config;
@@ -70,7 +71,8 @@ public sealed class PetScale : IDalamudPlugin
         IFramework _framework,
         IPluginLog _log,
         IClientState _clientState,
-        IDataManager _dataManger)
+        IDataManager _dataManger,
+        INotificationManager _notificationManager)
     {
         pluginInterface = _pluginInterface;
         commandManager = _commandManager;
@@ -80,7 +82,7 @@ public sealed class PetScale : IDalamudPlugin
         config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         utilities = new Utilities(_dataManger, log);
 
-        ConfigWindow = new ConfigWindow(this, config, pluginInterface, log);
+        ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager);
 #if DEBUG
         DevWindow = new DevWindow(log, pluginInterface);
         WindowSystem.AddWindow(DevWindow);
@@ -336,7 +338,7 @@ public sealed class PetScale : IDalamudPlugin
         utilities.CachePlayerList(playerObjectId, players, BattleCharaSpan);
     }
 
-    private unsafe void SetScale(BattleChara* pet, PetStruct userData, string petName)
+    private unsafe void SetScale(BattleChara* pet, in PetStruct userData, string petName)
     {
         var scale = userData.PetSize switch
         {
