@@ -161,7 +161,7 @@ public sealed class PetScale : IDalamudPlugin
         }
         foreach (var entry in petSizeMap)
         {
-            log.Debug("{pet} with scales {small} - {meduim} - {large}", entry.Key, entry.Value.smallScale, entry.Value.mediumScale, entry.Value.largeScale);
+            log.Debug("{pet} with scales {small} - {medium} - {large}", entry.Key, entry.Value.smallScale, entry.Value.mediumScale, entry.Value.largeScale);
         }
         foreach (var entry in ConfigWindow.petMap)
         {
@@ -169,7 +169,7 @@ public sealed class PetScale : IDalamudPlugin
         }
     }
 
-    private unsafe void OnFrameworkUpdate(IFramework framework)
+    private void OnFrameworkUpdate(IFramework framework)
     {
 #if DEBUG
         DevWindowThings();
