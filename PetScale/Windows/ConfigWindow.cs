@@ -50,7 +50,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private IList<PetStruct> petData => config.PetData;
 
     private string petSelection = DefaultPetSelection, longestPetName = string.Empty, sizeSelection = "Size", charaName = "Characters";
-    private float tableButtonAlingmentOffset, charaWidth, petWidth, sizesWidth;
+    private float tableButtonAlignmentOffset, charaWidth, petWidth, sizesWidth;
     private bool fontChange;
 
     public unsafe ConfigWindow(PetScale _plugin,
@@ -180,7 +180,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 ImGui.TableSetColumnIndex(2);
                 ImGui.TextUnformatted(sizeMap[item.PetSize]);
                 ImGui.TableSetColumnIndex(3);
-                ImGui.SetCursorPosX(tableButtonAlingmentOffset);
+                ImGui.SetCursorPosX(tableButtonAlignmentOffset);
                 if (DrawIconButton(fontHandle: null, buttonIcon, buttonId + buttonIcon))
                 {
                     petData.RemoveAt(i);
@@ -197,7 +197,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private static unsafe void DrawComboBox<T>(string label, string current, float width, out string result, IReadOnlyCollection<T> list, bool filter) where T : notnull
+    private static void DrawComboBox<T>(string label, string current, float width, out string result, IReadOnlyCollection<T> list, bool filter) where T : notnull
     {
         ImGui.SetNextItemWidth(width);
         using var combo = ImRaii.Combo("##Combo" + label, current);
@@ -387,10 +387,10 @@ public sealed class ConfigWindow : Window, IDisposable
             charaWidth = ImGui.CalcTextSize(LongestCharaName).X + (ImGui.GetStyle().FramePadding.X * 2);
             petWidth = ImGui.CalcTextSize(longestPetName).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
             sizesWidth = ImGui.CalcTextSize(LongestSize).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
-            tableButtonAlingmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
+            tableButtonAlignmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
             if (SizeConstraints.HasValue)
             {
-                var newWidth = tableButtonAlingmentOffset + GetIconButtonSize(fontHandle: null, buttonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
+                var newWidth = tableButtonAlignmentOffset + GetIconButtonSize(fontHandle: null, buttonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
                 SizeConstraints = new WindowSizeConstraints()
                 {
                     MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),
