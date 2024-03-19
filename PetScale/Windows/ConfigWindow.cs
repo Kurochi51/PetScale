@@ -37,7 +37,7 @@ public sealed class ConfigWindow : Window, IDisposable
         { PetSize.MediumModelScale,  "Medium"},
         { PetSize.LargeModelScale,   "Large" },
     };
-    private readonly string buttonIcon;
+    private readonly string deleteButtonIcon, addButtonIcon;
     private readonly CancellationTokenSource cts;
     private readonly CancellationToken cToken;
     private readonly Notification notification = new();
@@ -73,7 +73,8 @@ public sealed class ConfigWindow : Window, IDisposable
         cts = new CancellationTokenSource();
         cToken = cts.Token;
 
-        buttonIcon = FontAwesomeIcon.Trash.ToIconString();
+        deleteButtonIcon = FontAwesomeIcon.Trash.ToIconString();
+        addButtonIcon = FontAwesomeIcon.Plus.ToIconString();
         pluginInterface.UiBuilder.DefaultFontHandle.ImFontChanged += QueueColumnWidthChange;
     }
 
@@ -102,7 +103,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         DrawComboBox("Sizes", sizeSelection, sizesWidth, out sizeSelection, sizeMap.Values, filter: false);
         ImGui.SameLine();
-        if (DrawIconButton(fontHandle: null, FontAwesomeIcon.Plus.ToIconString(), "AddButton", 1))
+        if (DrawIconButton(fontHandle: null, addButtonIcon, "AddButton", 1))
         {
             buttonPressed = true;
         }
@@ -149,10 +150,10 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TableSetupColumn("Character", ImGuiTableColumnFlags.WidthFixed, charaWidth);
         ImGui.TableSetupColumn("Pet", ImGuiTableColumnFlags.WidthFixed, petWidth);
         ImGui.TableSetupColumn("PetSize", ImGuiTableColumnFlags.WidthFixed, sizesWidth);
-        ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, GetIconButtonSize(fontHandle: null, buttonIcon).X);
+        ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, GetIconButtonSize(fontHandle: null, deleteButtonIcon).X);
         var itemRemoved = false;
         var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
-        var clipperHeight = GetIconButtonSize(fontHandle: null, buttonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2);
+        var clipperHeight = GetIconButtonSize(fontHandle: null, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2);
         clipper.Begin(petData.Count, clipperHeight);
 
         var clipperBreak = false;
@@ -181,7 +182,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 ImGui.TextUnformatted(sizeMap[item.PetSize]);
                 ImGui.TableSetColumnIndex(3);
                 ImGui.SetCursorPosX(tableButtonAlignmentOffset);
-                if (DrawIconButton(fontHandle: null, buttonIcon, buttonId + buttonIcon))
+                if (DrawIconButton(fontHandle: null, deleteButtonIcon, buttonId + deleteButtonIcon))
                 {
                     petData.RemoveAt(i);
                     CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + sizeMap[item.PetSize] + " was removed.", PetScale.PluginName);
@@ -390,7 +391,7 @@ public sealed class ConfigWindow : Window, IDisposable
             tableButtonAlignmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
             if (SizeConstraints.HasValue)
             {
-                var newWidth = tableButtonAlignmentOffset + GetIconButtonSize(fontHandle: null, buttonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
+                var newWidth = tableButtonAlignmentOffset + GetIconButtonSize(fontHandle: null, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
                 SizeConstraints = new WindowSizeConstraints()
                 {
                     MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),
