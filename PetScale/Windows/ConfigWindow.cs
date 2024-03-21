@@ -14,6 +14,7 @@ using Dalamud.Interface;
 using Dalamud.Plugin.Services;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
+using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.ImGuiNotification;
@@ -42,6 +43,8 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly CancellationToken cToken;
     private readonly Notification notification = new();
     private const string DefaultPetSelection = "Pet";
+    private const string DefaultSizeSelection = "Size";
+    private const string DefaultCharacterSelection = "Characters";
     private const string LongestCharaName = "WWWWWWWWWWWWWWW WWWWW";
     private const string LongestSize = "Medium";
 
@@ -49,7 +52,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private Queue<string> players => plugin.players;
     private IList<PetStruct> petData => config.PetData;
 
-    private string petSelection = DefaultPetSelection, longestPetName = string.Empty, sizeSelection = "Size", charaName = "Characters";
+    private string petSelection = DefaultPetSelection, longestPetName = string.Empty, sizeSelection = DefaultSizeSelection, charaName = DefaultCharacterSelection;
     private float tableButtonAlignmentOffset, charaWidth, petWidth, sizesWidth;
     private bool fontChange;
 
@@ -89,12 +92,51 @@ public sealed class ConfigWindow : Window, IDisposable
 
     public override void OnClose()
     {
-        Save(save: true);
+        ProcessPetData(save: true);
+        charaName = DefaultCharacterSelection;
+        petSelection = DefaultPetSelection;
+        sizeSelection = DefaultSizeSelection;
     }
 
     public override void Draw()
     {
         ResizeIfNeeded();
+        using var tabBar = ImRaii.TabBar("TabBar");
+        if (!tabBar)
+        {
+            return;
+        }
+        GeneralTab();
+        MiscTab();
+    }
+
+    private void MiscTab()
+    {
+        using var miscTab = ImRaii.TabItem("Misc");
+        if (!miscTab)
+        {
+            return;
+        }
+        var fairyResize = config.FairyResize;
+        if (ImGui.Checkbox("Scale SCH fairy to match size of other fairies", ref fairyResize))
+        {
+            config.FairyResize = fairyResize;
+            config.Save(pluginInterface);
+        }
+        ImGuiComponents.HelpMarker("Seraph is excluded, as she's bigger by default");
+        DrawBottomButtons(onlyClose: true);
+    }
+
+    private void GeneralTab()
+    {
+        using var generalTab = ImRaii.TabItem("General");
+        if (!generalTab)
+        {
+            return;
+        }
+#if DEBUG
+        DevWindow.Print("Summon entries: " + petData.Count.ToString());
+#endif
         ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
         DrawComboBox("Characters", charaName, charaWidth, out charaName, players, filter: true);
@@ -112,17 +154,17 @@ public sealed class ConfigWindow : Window, IDisposable
             var error = false;
             if (charaName.IsNullOrWhitespace() || charaName.Equals("Characters", StringComparison.Ordinal))
             {
-                CreateNotification("Invalid Character selected", PetScale.PluginName, NotificationType.Error);
+                CreateNotification("Invalid Character selected", "Invalid entry", NotificationType.Error);
                 error = true;
             }
             if (petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
             {
-                CreateNotification("Invalid Pet selected", PetScale.PluginName, NotificationType.Error);
+                CreateNotification("Invalid Pet selected", "Invalid entry", NotificationType.Error);
                 error = true;
             }
             if (sizeSelection.Equals("Size", StringComparison.Ordinal))
             {
-                CreateNotification("Invalid Pet Size selected", PetScale.PluginName, NotificationType.Error);
+                CreateNotification("Invalid Pet Size selected", "Invalid entry", NotificationType.Error);
                 error = true;
             }
             if (!error)
@@ -132,9 +174,6 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         DisplayEntries();
         DrawBottomButtons();
-#if DEBUG
-        DevWindow.Print("Summon entries: " + petData.Count.ToString());
-#endif
     }
 
     private unsafe void DisplayEntries()
@@ -185,7 +224,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 if (DrawIconButton(fontHandle: null, deleteButtonIcon, buttonId + deleteButtonIcon))
                 {
                     petData.RemoveAt(i);
-                    CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + sizeMap[item.PetSize] + " was removed.", PetScale.PluginName);
+                    CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + sizeMap[item.PetSize] + " was removed.", "Entry removed");
                     itemRemoved = true;
                 }
             }
@@ -194,7 +233,7 @@ public sealed class ConfigWindow : Window, IDisposable
         clipper.Destroy();
         if (itemRemoved)
         {
-            Save(save: true);
+            ProcessPetData(save: true);
         }
     }
 
@@ -332,7 +371,7 @@ public sealed class ConfigWindow : Window, IDisposable
             petData.Add(currentPetData);
             CreateNotification(
                 "Entry " + currentPetData.CharacterName + ", " + petSelection + ", " + sizeMap[currentPetSize.Key] + " was added.",
-                PetScale.PluginName);
+                "New entry");
         }
         else if (!checkPet.PetSize.Equals(currentPetData.PetSize))
         {
@@ -341,27 +380,30 @@ public sealed class ConfigWindow : Window, IDisposable
             checkPet.PetSize = currentPetSize.Key;
             petData[index] = checkPet;
             log.Debug("Entry {name} with {pet} at {size} got changed.", checkPet.CharacterName, petSelection, checkPet.PetSize);
-            CreateNotification(entry + sizeMap[petData[index].PetSize], PetScale.PluginName);
+            CreateNotification(entry + sizeMap[petData[index].PetSize], "Entry changed");
         }
-        Save(save: true);
+        ProcessPetData(save: true);
     }
 
-    private void DrawBottomButtons()
+    private void DrawBottomButtons(bool onlyClose = false)
     {
         var originPos = ImGui.GetCursorPos();
-        ImGui.SetCursorPosX(10f);
-        ImGui.SetCursorPosY(ImGui.GetWindowContentRegionMax().Y - ImGui.GetFrameHeight() - (3f * ImGuiHelpers.GlobalScale) + (ImGui.GetScrollY() * 2));
-        if (ImGui.Button("Update Character List"))
+        if (!onlyClose)
         {
-            RequestCache(newCache: true);
+            ImGui.SetCursorPosX(10f);
+            ImGui.SetCursorPosY(ImGui.GetWindowContentRegionMax().Y - ImGui.GetFrameHeight() - (3f * ImGuiHelpers.GlobalScale) + (ImGui.GetScrollY() * 2));
+            if (ImGui.Button("Update Character List"))
+            {
+                RequestCache(newCache: true);
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Clear All Entries"))
+            {
+                petData.Clear();
+                ProcessPetData(save: true);
+            }
+            ImGui.SetCursorPos(originPos);
         }
-        ImGui.SameLine();
-        if (ImGui.Button("Clear All Entries"))
-        {
-            petData.Clear();
-            Save(save: true);
-        }
-        ImGui.SetCursorPos(originPos);
         ImGui.SetCursorPosX(ImGui.GetWindowContentRegionMax().X - ImGui.CalcTextSize("Close").X - 10f);
         ImGui.SetCursorPosY(ImGui.GetWindowContentRegionMax().Y - ImGui.GetFrameHeight() - (3f * ImGuiHelpers.GlobalScale) + (ImGui.GetScrollY() * 2));
         if (ImGui.Button("Close"))
@@ -402,7 +444,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    public void Save(bool save)
+    public void ProcessPetData(bool save)
     {
         if (petData.Count is 0)
         {
@@ -413,7 +455,7 @@ public sealed class ConfigWindow : Window, IDisposable
             }
             return;
         }
-        var tempEnumerable = petData.Where(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
+        var tempEnumerable = petData.Where(item => item.CharacterName.Equals(PetScale.Others, StringComparison.Ordinal));
         if (tempEnumerable.Count() is not 0)
         {
             var tempList = tempEnumerable.ToList();
@@ -422,7 +464,7 @@ public sealed class ConfigWindow : Window, IDisposable
             {
                 config.PetData = tempList;
             }
-            var otherEntry = tempList.Last(item => item.CharacterName.Equals("Other players", StringComparison.Ordinal));
+            var otherEntry = tempList.Last(item => item.CharacterName.Equals(PetScale.Others, StringComparison.Ordinal));
             plugin.lastIndexOfOthers = tempList.LastIndexOf(otherEntry);
         }
         else
@@ -459,10 +501,10 @@ public sealed class ConfigWindow : Window, IDisposable
         fontChange = true;
     }
 
-    private void CreateNotification(string content, string title, NotificationType type = NotificationType.None)
+    private void CreateNotification(string content, string title, NotificationType type = NotificationType.Success)
     {
         notification.Content = content;
-        notification.Title = title;
+        notification.Title = notification.MinimizedText = title;
         notification.Type = type;
         notificationManager.AddNotification(notification);
     }

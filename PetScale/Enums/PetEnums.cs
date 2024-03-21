@@ -4,9 +4,6 @@ namespace PetScale.Enums;
 /// <summary>
 ///     Pet exd rows corresponding to summoner pets with scaling
 /// </summary>
-/// <remarks>
-///     Important that value name is identical with <see cref="PetModel"/> values to map name and scales of pet
-/// </remarks>
 public enum PetRow : uint
 {
     Bahamut = 10,
@@ -14,14 +11,15 @@ public enum PetRow : uint
     Ifrit = 30,
     Titan = 31,
     Garuda = 32,
+    // SCH Fairies
+    Eos = 6,
+    Selene = 7,
+    Seraph = 15,
 }
 
 /// <summary>
 ///     Since there's no good way of identifying BNPCs in game without using an external source, this is a direct mapping of Character.CharacterData.ModelCharaId
 /// </summary>
-/// <remarks>
-///     Important that value name is identical with <see cref="PetModel"/> values to map name and scales of pet
-/// </remarks>
 public enum PetModel
 {
     AllPets = 0,
@@ -30,6 +28,10 @@ public enum PetModel
     Ifrit = 3122,
     Titan = 3124,
     Garuda = 3123,
+    // SCH Fairies
+    Eos = 407,
+    Selene = 408,
+    Seraph = 2619,
 }
 
 public enum PetSize

@@ -27,7 +27,7 @@ namespace PetScale;
 public sealed class PetScale : IDalamudPlugin
 {
     private const string CommandName = "/pscale";
-    public const string PluginName = "Pet Scale";
+    public const string Others = "Other players";
 
     private readonly DalamudPluginInterface pluginInterface;
     private readonly Configuration config;
@@ -42,7 +42,6 @@ public sealed class PetScale : IDalamudPlugin
     private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new(StringComparer.OrdinalIgnoreCase);
     private readonly Stopwatch stopwatch = new();
     private readonly TimeSpan dictionaryExpirationTime = TimeSpan.FromMilliseconds(500); // used via .TotalMilliseconds
-    private const string Others = "Other players";
 
     private readonly Dictionary<PetRow, PetModel> petModelMap = new()
     {
@@ -105,7 +104,7 @@ public sealed class PetScale : IDalamudPlugin
         stopwatch.Start();
 
         _ = Task.Run(InitSheet);
-        ConfigWindow.Save(save: false);
+        ConfigWindow.ProcessPetData(save: false);
         QueueOnlyExistingData();
     }
 
@@ -152,12 +151,15 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             var scales = (pet.Unknown5 / 100f, pet.Unknown6 / 100f, pet.Unknown7 / 100f);
-            if (scales.Item1 >= 1 || scales.Item2 >= 1)
+            if ((scales.Item1 >= 1 || scales.Item2 >= 1) && !pet.Unknown16)
             {
                 continue;
             }
             petSizeMap.Add(pet.Name, scales);
-            ConfigWindow.petMap.Add(pet.Name, petModelMap[(PetRow)pet.RowId]);
+            if (petModelMap.ContainsKey((PetRow)pet.RowId))
+            {
+                ConfigWindow.petMap.Add(pet.Name, petModelMap[(PetRow)pet.RowId]);
+            }
         }
         foreach (var entry in petSizeMap)
         {
@@ -264,9 +266,13 @@ public sealed class PetScale : IDalamudPlugin
             }
 #if DEBUG
             DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelSkeletonId + " owned by " + characterName + " size " + pet->Character.GameObject.Scale);
-            //DevWindow.Print("Visibility: " + pet->Character.GameObject.GetDrawObject()->IsVisible);
-            //DevWindow.Print("RenderFlags: " + pet->Character.GameObject.RenderFlags);
 #endif
+            if (config.FairyResize && Utilities.IsFairy(pet->Character.CharacterData.ModelCharaId))
+            {
+                utilities.SetScale(pet, 1.5f);
+                activePetDictionary[pair.Key] = (pair.Value.character, true);
+                continue;
+            }
             if (ParseStruct(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId, character->GameObject.ObjectID == player.ObjectId))
             {
                 activePetDictionary[pair.Key] = (pair.Value.character, true);

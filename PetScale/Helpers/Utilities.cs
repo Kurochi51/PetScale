@@ -88,6 +88,9 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
         }
     }
 
+    public static bool IsFairy(int modelId)
+        => (PetModel)modelId is PetModel.Eos or PetModel.Selene;
+
     public unsafe bool PetVisible(BattleChara* pet)
     {
         if (pet is null || pet->Character.GameObject.GetDrawObject() is null)
