@@ -165,10 +165,6 @@ public sealed class PetScale : IDalamudPlugin
         {
             log.Debug("{pet} with scales {small} - {medium} - {large}", entry.Key, entry.Value.smallScale, entry.Value.mediumScale, entry.Value.largeScale);
         }
-        foreach (var entry in ConfigWindow.petMap)
-        {
-            log.Debug("{pet} with {model}", entry.Key, entry.Value);
-        }
     }
 
     private void OnFrameworkUpdate(IFramework framework)
@@ -267,11 +263,21 @@ public sealed class PetScale : IDalamudPlugin
 #if DEBUG
             DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelSkeletonId + " owned by " + characterName + " size " + pet->Character.GameObject.Scale);
 #endif
-            if (config.FairyResize && Utilities.IsFairy(pet->Character.CharacterData.ModelCharaId))
+            if (config.FairySize is not 0 && Utilities.IsFairy(pet->Character.CharacterData.ModelCharaId) && utilities.PetVisible(pet))
             {
-                utilities.SetScale(pet, 1.5f);
-                activePetDictionary[pair.Key] = (pair.Value.character, true);
-                continue;
+                switch (config.FairySize)
+                {
+                    case 1 when character->GameObject.ObjectID == player.ObjectId:
+                    case 2 when character->GameObject.ObjectID != player.ObjectId:
+                    case 3:
+                        {
+                            utilities.SetScale(pet, 1.5f);
+                            activePetDictionary[pair.Key] = (pair.Value.character, true);
+                            continue;
+                        }
+                    default:
+                        break;
+                }
             }
             if (ParseStruct(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId, character->GameObject.ObjectID == player.ObjectId))
             {

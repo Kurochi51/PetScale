@@ -117,13 +117,17 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             return;
         }
-        var fairyResize = config.FairyResize;
-        if (ImGui.Checkbox("Scale SCH fairy to match size of other fairies", ref fairyResize))
-        {
-            config.FairyResize = fairyResize;
-            config.Save(pluginInterface);
-        }
-        ImGuiComponents.HelpMarker("Seraph is excluded, as she's bigger by default");
+        DrawRadioButtons(
+            "Scale SCH fairy to the size of other in-game fairies",
+            () =>
+            {
+                ImGui.SameLine();
+                ImGuiComponents.HelpMarker("Seraph is excluded, as she's bigger by default");
+            },
+            config,
+            c => c.FairySize,
+            (c, value) => c.FairySize = value,
+            "Off", "Self", "Others", "All");
         DrawBottomButtons(onlyClose: true);
     }
 
@@ -508,6 +512,49 @@ public sealed class ConfigWindow : Window, IDisposable
         notification.Type = type;
         notificationManager.AddNotification(notification);
     }
+
+    /// <summary>
+    ///     This function draws as many <see cref="ImGui.RadioButton(string, ref int, int)"/> as the number of <paramref name="buttons"/> passed,
+    ///     with the option to add an extra element, like a <see cref="ImGuiComponents.HelpMarker(string)"/> after the intial <paramref name="label"/>.
+    /// </summary>
+    /// <param name="label">The text used for <see cref="ImGui.TextUnformatted(string)"/>.</param>
+    /// <param name="extra">Nullable action to be called immediately after <see cref="ImGui.TextUnformatted(string)"/>, and before the <see cref="ImGui.RadioButton(string, ref int, int)"/> are drawn.</param>
+    /// <param name="config">Instance of <see cref="Configuration"/> used for <paramref name="getOption"/> and <paramref name="setOption"/></param>
+    /// <param name="getOption">Function responsible for retrieving the desired <see cref="Configuration"/> property.</param>
+    /// <param name="setOption">Action responsible for setting the option from <paramref name="getOption"/> back to an instance of <see cref="Configuration"/>.</param>
+    /// <param name="buttons">The labels used for <see cref="ImGui.RadioButton(string, ref int, int)"/>.</param>
+    private void DrawRadioButtons(string label, Action? extra, in Configuration config, Func<Configuration, int> getOption, Action<Configuration, int> setOption, params string[] buttons)
+    {
+        ImGui.TextUnformatted(label);
+        extra?.Invoke();
+        var radioOption = getOption(config);
+        if (radioOption > buttons.Length)
+        {
+            radioOption = 0;
+            setOption(config, radioOption);
+        }
+        var space = ImGui.GetContentRegionAvail().X;
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            if (ImGui.RadioButton(buttons[i], ref radioOption, i))
+            {
+                setOption(config, radioOption);
+                config.Save(pluginInterface);
+            }
+            space -= ImGui.CalcTextSize(buttons[i]).X + GetStyleWidth();
+            if (i + 1 < buttons.Length && space > ImGui.CalcTextSize(buttons[i + 1]).X + GetStyleWidth())
+            {
+                ImGui.SameLine();
+            }
+            else
+            {
+                space = ImGui.GetContentRegionAvail().X;
+            }
+        }
+    }
+
+    private static float GetStyleWidth()
+        => (ImGui.GetStyle().FramePadding.X * 2) + (ImGui.GetStyle().ItemSpacing.X * 2) + ImGui.GetStyle().WindowPadding.X + ImGui.GetStyle().ItemInnerSpacing.X;
 
     public void Dispose()
     {
