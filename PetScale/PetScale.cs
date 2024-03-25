@@ -11,6 +11,7 @@ using Dalamud.Game.Command;
 using Dalamud.Plugin.Services;
 using Dalamud.Interface.Windowing;
 using Lumina.Excel.GeneratedSheets2;
+using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
@@ -56,6 +57,8 @@ public sealed class PetScale : IDalamudPlugin
     public Queue<string> players { get; } = new(101); // 100 players + Others entry
     public bool requestedCache { get; set; } = true;
     public int lastIndexOfOthers { get; set; } = -1;
+    [Obsolete("Replace with Dalamud provided font once merged")]
+    public IFontHandle IconFont { get; set; }
 
     private ConfigWindow ConfigWindow { get; init; }
 #if DEBUG
@@ -104,6 +107,7 @@ public sealed class PetScale : IDalamudPlugin
         stopwatch.Start();
 
         _ = Task.Run(InitSheet);
+        IconFont = Utilities.CreateIconFont(pluginInterface);
         ConfigWindow.ProcessPetData(save: false);
         QueueOnlyExistingData();
     }

@@ -149,7 +149,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         DrawComboBox("Sizes", sizeSelection, sizesWidth, out sizeSelection, sizeMap.Values, filter: false);
         ImGui.SameLine();
-        if (DrawIconButton(fontHandle: null, addButtonIcon, "AddButton", 1))
+        if (IconButton(plugin.IconFont, addButtonIcon, "AddButton", 1))
         {
             buttonPressed = true;
         }
@@ -193,10 +193,10 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TableSetupColumn("Character", ImGuiTableColumnFlags.WidthFixed, charaWidth);
         ImGui.TableSetupColumn("Pet", ImGuiTableColumnFlags.WidthFixed, petWidth);
         ImGui.TableSetupColumn("PetSize", ImGuiTableColumnFlags.WidthFixed, sizesWidth);
-        ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, GetIconButtonSize(fontHandle: null, deleteButtonIcon).X);
+        ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, IconButtonSize(plugin.IconFont, deleteButtonIcon).X);
         var itemRemoved = false;
         var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
-        var clipperHeight = GetIconButtonSize(fontHandle: null, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2);
+        var clipperHeight = IconButtonSize(plugin.IconFont, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2);
         clipper.Begin(petData.Count, clipperHeight);
 
         var clipperBreak = false;
@@ -225,7 +225,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 ImGui.TextUnformatted(sizeMap[item.PetSize]);
                 ImGui.TableSetColumnIndex(3);
                 ImGui.SetCursorPosX(tableButtonAlignmentOffset);
-                if (DrawIconButton(fontHandle: null, deleteButtonIcon, buttonId + deleteButtonIcon))
+                if (IconButton(plugin.IconFont, deleteButtonIcon, buttonId + deleteButtonIcon, 1))
                 {
                     petData.RemoveAt(i);
                     CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + sizeMap[item.PetSize] + " was removed.", "Entry removed");
@@ -307,47 +307,27 @@ public sealed class ConfigWindow : Window, IDisposable
         clipper.Destroy();
     }
 
-    private static Vector2 GetIconButtonSize(IFontHandle? fontHandle, string icon)
+    private static Vector2 IconButtonSize(IFontHandle fontHandle, string icon)
     {
-        using var currentFont = fontHandle == null ? ImRaii.PushFont(UiBuilder.IconFont) : fontHandle.Push();
-        var iconSize = ImGui.CalcTextSize(icon);
-        var iconscaling = (iconSize.X < iconSize.Y ? (iconSize.Y - iconSize.X) / 2f : 0f, iconSize.X > iconSize.Y ? 1f / (iconSize.X / iconSize.Y) : 1f);
-        var normalized = iconscaling.Item2 == 1f ?
-            new Vector2(iconSize.Y, iconSize.Y)
-            : new((iconSize.X * iconscaling.Item2) + (iconscaling.Item1 * 2), (iconSize.X * iconscaling.Item2) + (iconscaling.Item1 * 2));
-        var padding = ImGui.GetStyle().FramePadding;
-        return normalized with { X = normalized.X + (padding.X * 2), Y = normalized.Y + (padding.Y * 2) };
+        using (fontHandle.Push())
+        {
+            return new Vector2(ImGuiHelpers.GetButtonSize(icon).X, ImGui.GetFrameHeight());
+        }
     }
 
-    // Shamelessly ripped off mare
-    private static bool DrawIconButton(IFontHandle? fontHandle, string icon, string buttonIDLabel, float widthOffset = 0f)
+    private static bool IconButton(IFontHandle fontHandle, string icon, string buttonIDLabel, float widthOffset = 0f)
     {
-        var clicked = false;
-        using var currentFont = fontHandle == null ? ImRaii.PushFont(UiBuilder.IconFont) : fontHandle.Push();
-        var iconSize = ImGui.CalcTextSize(icon);
-        var iconscaling = (iconSize.X < iconSize.Y ? (iconSize.Y - iconSize.X) / 2f : 0f, iconSize.X > iconSize.Y ? 1f / (iconSize.X / iconSize.Y) : 1f);
-        var normalized = iconscaling.Item2 == 1f ?
-            new Vector2(iconSize.Y, iconSize.Y)
-            : new((iconSize.X * iconscaling.Item2) + (iconscaling.Item1 * 2), (iconSize.X * iconscaling.Item2) + (iconscaling.Item1 * 2));
-        var padding = ImGui.GetStyle().FramePadding;
-        var cursor = ImGui.GetCursorPos();
-        var drawList = ImGui.GetWindowDrawList();
-        var pos = ImGui.GetWindowPos();
-        var scrollPosY = ImGui.GetScrollY();
-        var scrollPosX = ImGui.GetScrollX();
-        var buttonSize = normalized with { X = normalized.X + (padding.X * 2), Y = normalized.Y + (padding.Y * 2) };
-
-        if (ImGui.Button("##" + buttonIDLabel, buttonSize))
+        using (fontHandle.Push())
         {
-            clicked = true;
+            var cursorScreenPos = ImGui.GetCursorScreenPos();
+            var frameHeight = ImGui.GetFrameHeight();
+            var result = ImGui.Button("##" + buttonIDLabel, new Vector2(ImGuiHelpers.GetButtonSize(icon).X, frameHeight));
+            var pos = new Vector2(cursorScreenPos.X + ImGui.GetStyle().FramePadding.X + widthOffset,
+                cursorScreenPos.Y + (frameHeight / 2f) - (ImGui.CalcTextSize(icon).Y / 2f));
+            ImGui.GetWindowDrawList().AddText(pos, ImGui.GetColorU32(ImGuiCol.Text), icon);
+
+            return result;
         }
-
-        drawList.AddText(ImGui.GetFont(), ImGui.GetFontSize() * iconscaling.Item2,
-            new(pos.X - scrollPosX + cursor.X + iconscaling.Item1 + padding.X + widthOffset,
-                pos.Y - scrollPosY + cursor.Y + ((buttonSize.Y - (iconSize.Y * iconscaling.Item2)) / 2f)),
-            ImGui.GetColorU32(ImGuiCol.Text), icon);
-
-        return clicked;
     }
 
     private void CheckPossibleEntry()
@@ -437,7 +417,7 @@ public sealed class ConfigWindow : Window, IDisposable
             tableButtonAlignmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
             if (SizeConstraints.HasValue)
             {
-                var newWidth = tableButtonAlignmentOffset + GetIconButtonSize(fontHandle: null, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
+                var newWidth = tableButtonAlignmentOffset + IconButtonSize(plugin.IconFont, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
                 SizeConstraints = new WindowSizeConstraints()
                 {
                     MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),
