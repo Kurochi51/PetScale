@@ -53,6 +53,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private IList<PetStruct> petData => config.PetData;
 
     private string petSelection = DefaultPetSelection, longestPetName = string.Empty, sizeSelection = DefaultSizeSelection, charaName = DefaultCharacterSelection;
+    private string filterTemp = string.Empty;
     private float tableButtonAlignmentOffset, charaWidth, petWidth, sizesWidth;
     private bool fontChange;
 
@@ -241,7 +242,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private static void DrawComboBox<T>(string label, string current, float width, out string result, IReadOnlyCollection<T> list, bool filter) where T : notnull
+    private void DrawComboBox<T>(string label, string current, float width, out string result, IReadOnlyCollection<T> list, bool filter) where T : notnull
     {
         ImGui.SetNextItemWidth(width);
         using var combo = ImRaii.Combo("##Combo" + label, current);
@@ -250,27 +251,25 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             return;
         }
-
         var tempList = list.Select(item => item.ToString()!).ToList();
-        var comboWidth = ImGui.GetWindowWidth() - (2 * ImGui.GetStyle().FramePadding.X);
-        string? temp = null;
+        if (tempList.Count > 0)
+        {
+            tempList.Sort(2, tempList.Count - 2, StringComparer.InvariantCulture);
+        }
         if (filter)
         {
-            temp = string.Empty;
-            ImGui.SetNextItemWidth(comboWidth);
-            ImGui.InputTextWithHint("##Filter" + label, "Filter..", ref temp, 30);
-            if (tempList.Count > 0)
-            {
-                tempList.Sort(2, tempList.Count - 2, StringComparer.InvariantCulture);
-            }
+            ImGui.SetNextItemWidth(width);
+            ImGui.InputTextWithHint("##Filter" + label, "Filter..", ref filterTemp, 30);
+            tempList = tempList.Where(item => item.Contains(filterTemp, StringComparison.OrdinalIgnoreCase)).ToList();
         }
         var itemCount = tempList.Count;
-        var height = (ImGui.GetTextLineHeightWithSpacing() * Math.Min(itemCount + 1.5f, 8)) - ImGui.GetFrameHeight() - ImGui.GetStyle().WindowPadding.Y - ImGui.GetStyle().FramePadding.Y;
-        using var listChild = ImRaii.Child("###child" + label, new Vector2(comboWidth, height));
-        DrawClippedList(itemCount, temp, current, tempList, out result);
+        var height = ImGui.GetTextLineHeightWithSpacing() * Math.Min(itemCount + 1.5f, 8);
+        height += itemCount > 0 ? -ImGui.GetFrameHeight() - ImGui.GetStyle().WindowPadding.Y - ImGui.GetStyle().FramePadding.Y : 0;
+        using var listChild = ImRaii.Child("###child" + label, new Vector2(width, height));
+        DrawClippedList(itemCount, current, tempList, out result);
     }
 
-    private static unsafe void DrawClippedList(int itemCount, string? filter, string preview, IReadOnlyList<string> list, out string result)
+    private static unsafe void DrawClippedList(int itemCount, string preview, IReadOnlyList<string> list, out string result)
     {
         result = preview;
         var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
@@ -291,11 +290,7 @@ public sealed class ConfigWindow : Window, IDisposable
                     break;
                 }
                 var item = list[i];
-                if (item.IsNullOrWhitespace() || (!filter.IsNullOrEmpty() && !item.Contains(filter, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-                if (!ImGui.Selectable(item, preview.Equals(item, StringComparison.Ordinal)))
+                if (!ImGui.Selectable(item + "##" + i.ToString(CultureInfo.CurrentCulture)))
                 {
                     continue;
                 }
