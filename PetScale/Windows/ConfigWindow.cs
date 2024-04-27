@@ -51,6 +51,7 @@ public sealed class ConfigWindow : Window, IDisposable
     public Dictionary<string, PetModel> petMap { get; } = new(StringComparer.Ordinal);
     private Queue<string> players => plugin.players;
     private IList<PetStruct> petData => config.PetData;
+    private IFontHandle iconFont => pluginInterface.UiBuilder.IconFontFixedWidthHandle;
 
     private string petSelection = DefaultPetSelection, longestPetName = string.Empty, sizeSelection = DefaultSizeSelection, charaName = DefaultCharacterSelection;
     private string filterTemp = string.Empty;
@@ -150,7 +151,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         DrawComboBox("Sizes", sizeSelection, sizesWidth, out sizeSelection, sizeMap.Values, filter: false);
         ImGui.SameLine();
-        if (IconButton(plugin.IconFont, addButtonIcon, "AddButton", 1))
+        if (IconButton(iconFont, addButtonIcon, "AddButton", 1))
         {
             buttonPressed = true;
         }
@@ -194,10 +195,10 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TableSetupColumn("Character", ImGuiTableColumnFlags.WidthFixed, charaWidth);
         ImGui.TableSetupColumn("Pet", ImGuiTableColumnFlags.WidthFixed, petWidth);
         ImGui.TableSetupColumn("PetSize", ImGuiTableColumnFlags.WidthFixed, sizesWidth);
-        ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, IconButtonSize(plugin.IconFont, deleteButtonIcon).X);
+        ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, IconButtonSize(iconFont, deleteButtonIcon).X);
         var itemRemoved = false;
         var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
-        var clipperHeight = IconButtonSize(plugin.IconFont, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2);
+        var clipperHeight = IconButtonSize(iconFont, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2);
         clipper.Begin(petData.Count, clipperHeight);
 
         var clipperBreak = false;
@@ -226,7 +227,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 ImGui.TextUnformatted(sizeMap[item.PetSize]);
                 ImGui.TableSetColumnIndex(3);
                 ImGui.SetCursorPosX(tableButtonAlignmentOffset);
-                if (IconButton(plugin.IconFont, deleteButtonIcon, buttonId + deleteButtonIcon, 1))
+                if (IconButton(iconFont, deleteButtonIcon, buttonId + deleteButtonIcon, 1))
                 {
                     petData.RemoveAt(i);
                     CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + sizeMap[item.PetSize] + " was removed.", "Entry removed");
@@ -310,6 +311,8 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
+    // widthOffset is a pain in the ass, at 100% you want 0, <100% you want 1 or more, >100% it entirely depends on whether you get a non-repeating divison or not... maybe?
+    // also this entirely varies for each icon, so good luck aligning everything
     private static bool IconButton(IFontHandle fontHandle, string icon, string buttonIDLabel, float widthOffset = 0f)
     {
         using (fontHandle.Push())
@@ -412,7 +415,7 @@ public sealed class ConfigWindow : Window, IDisposable
             tableButtonAlignmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
             if (SizeConstraints.HasValue)
             {
-                var newWidth = tableButtonAlignmentOffset + IconButtonSize(plugin.IconFont, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
+                var newWidth = tableButtonAlignmentOffset + IconButtonSize(iconFont, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
                 SizeConstraints = new WindowSizeConstraints()
                 {
                     MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),

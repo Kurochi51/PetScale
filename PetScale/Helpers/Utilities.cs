@@ -4,10 +4,7 @@ using System.Collections.Generic;
 using Dalamud;
 using Lumina.Excel;
 using Dalamud.Memory;
-using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
-using Dalamud.Interface.Utility;
-using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Game.ClientState.Objects.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.Interop;
@@ -102,42 +99,4 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
         }
         return pet->Character.GameObject.GetDrawObject()->IsVisible;
     }
-
-    public static IFontHandle CreateIconFont(DalamudPluginInterface pi)
-        => pi.UiBuilder.FontAtlas.NewDelegateFontHandle(e =>
-        {
-            e.OnPreBuild(tk => tk.AddFontAwesomeIconFont(new()
-            {
-                SizePx = pi.UiBuilder.DefaultFontSpec.SizePx,
-                GlyphMinAdvanceX = pi.UiBuilder.DefaultFontSpec.SizePx,
-                GlyphMaxAdvanceX = pi.UiBuilder.DefaultFontSpec.SizePx,
-            }));
-            e.OnPostBuild(tk =>
-            {
-                var font = tk.Font;
-                var fontSize = font.FontSize;
-                var glyphs = font.GlyphsWrapped();
-                foreach (ref var glyph in glyphs.DataSpan)
-                {
-                    var ratio = 1f;
-                    if (glyph.X1 - glyph.X0 > fontSize)
-                    {
-                        ratio = Math.Max(ratio, (glyph.X1 - glyph.X0) / fontSize);
-                    }
-                    if (glyph.Y1 - glyph.Y0 > fontSize)
-                    {
-                        ratio = Math.Max(ratio, (glyph.Y1 - glyph.Y0) / fontSize);
-                    }
-                    var width = MathF.Round((glyph.X1 - glyph.X0) / ratio, MidpointRounding.ToZero);
-                    var height = MathF.Round((glyph.Y1 - glyph.Y0) / ratio, MidpointRounding.AwayFromZero);
-                    glyph.X0 = MathF.Round((fontSize - width) / 2f, MidpointRounding.ToZero);
-                    glyph.Y0 = MathF.Round((fontSize - height) / 2f, MidpointRounding.AwayFromZero);
-                    glyph.X1 = glyph.X0 + width;
-                    glyph.Y1 = glyph.Y0 + height;
-                    glyph.AdvanceX = fontSize;
-                }
-
-                tk.BuildLookupTable(font);
-            });
-        });
 }
