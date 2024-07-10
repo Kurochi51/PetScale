@@ -12,5 +12,5 @@ public class Configuration : IPluginConfiguration
     public IList<PetStruct> PetData { get; set; } = [];
     public int FairySize { get; set; } = 0;
 
-    public void Save(DalamudPluginInterface pi) => pi.SavePluginConfig(this);
+    public void Save(IDalamudPluginInterface pi) => pi.SavePluginConfig(this);
 }

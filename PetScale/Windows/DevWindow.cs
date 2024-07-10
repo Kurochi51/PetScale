@@ -17,11 +17,11 @@ public class DevWindow : Window
     private static readonly Queue<Pointer<GameObject>> RedrawObjects = new();
 #pragma warning disable S4487
     private readonly IPluginLog log;
-    private readonly DalamudPluginInterface pluginInterface;
+    private readonly IDalamudPluginInterface pluginInterface;
 #pragma warning restore
     private bool redrawWanted = false;
 
-    public DevWindow(IPluginLog _pluginLog, DalamudPluginInterface _pluginInterface) : base("DevWindow - " + nameof(PetScale))
+    public DevWindow(IPluginLog _pluginLog, IDalamudPluginInterface _pluginInterface) : base("DevWindow - " + nameof(PetScale))
     {
         pluginInterface = _pluginInterface;
         log = _pluginLog;

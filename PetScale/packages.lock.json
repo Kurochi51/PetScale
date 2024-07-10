@@ -4,15 +4,15 @@
     "net8.0-windows7.0": {
       "DalamudPackager": {
         "type": "Direct",
-        "requested": "[2.1.12, )",
-        "resolved": "2.1.12",
-        "contentHash": "Sc0PVxvgg4NQjcI8n10/VfUQBAS4O+Fw2pZrAqBdRMbthYGeogzu5+xmIGCGmsEZ/ukMOBuAqiNiB5qA3MRalg=="
+        "requested": "[2.1.13, )",
+        "resolved": "2.1.13",
+        "contentHash": "rMN1omGe8536f4xLMvx9NwfvpAc9YFFfeXJ1t4P4PE6Gu8WCIoFliR1sh07hM+bfODmesk/dvMbji7vNI+B/pQ=="
       },
       "Meziantou.Analyzer": {
         "type": "Direct",
-        "requested": "[2.0.149, )",
-        "resolved": "2.0.149",
-        "contentHash": "nJaiWMp6AlosBpl3sJO/frbqiImPBHodaJpcwlA/ez3zwjj9ZF4oeH0tWHSRFW8+e5mJMswlc3Kwl8DFskVOCg=="
+        "requested": "[2.0.159, )",
+        "resolved": "2.0.159",
+        "contentHash": "+Lu4NktCK98/PkPCluTA+uRHS7uvMXa/Z2WLPE8TDsS/ybYtaOhfq8Wi745fO26wI8rNGaJlKsfFskcKWC5eDQ=="
       }
     }
   }

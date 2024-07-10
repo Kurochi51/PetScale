@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 
-using Dalamud;
+using Dalamud.Game;
 using Lumina.Excel;
 using Dalamud.Memory;
 using Dalamud.Plugin.Services;
-using Dalamud.Game.ClientState.Objects.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.Interop;
 using PetScale.Enums;
 
@@ -62,14 +62,14 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
 
     public static unsafe void ToggleVisibility(FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject* actor)
     {
-        if (actor is null || actor->ObjectID is 0xE0000000)
+        if (actor is null || actor->EntityId is 0xE0000000)
         {
             return;
         }
         *ActorDrawState(actor) ^= DrawState.Invisibility;
     }
 
-    public unsafe void CachePlayerList(uint playerObjectId, Queue<string> queue, Span<Pointer<BattleChara>> CharacterSpan)
+    public unsafe void CachePlayerList(uint playerEntityId, Queue<string> queue, Span<Pointer<BattleChara>> CharacterSpan)
     {
         foreach (var chara in CharacterSpan)
         {
@@ -77,11 +77,11 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
             {
                 continue;
             }
-            if (chara.Value->Character.GameObject.ObjectKind is not (byte)ObjectKind.Player || chara.Value->Character.GameObject.ObjectID is 0xE0000000)
+            if (chara.Value->Character.GameObject.ObjectKind is not ObjectKind.Pc || chara.Value->Character.GameObject.EntityId is 0xE0000000)
             {
                 continue;
             }
-            if (chara.Value->Character.GameObject.ObjectID != playerObjectId)
+            if (chara.Value->Character.GameObject.EntityId != playerEntityId)
             {
                 queue.Enqueue(MemoryHelper.ReadStringNullTerminated((nint)chara.Value->Character.GameObject.GetName()));
             }

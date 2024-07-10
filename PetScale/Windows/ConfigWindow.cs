@@ -18,7 +18,6 @@ using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.ManagedFontAtlas;
 using Dalamud.Interface.ImGuiNotification;
-using Dalamud.Interface.Internal.Notifications;
 using FFXIVClientStructs.FFXIV.Client.Graphics.Kernel;
 using PetScale.Structs;
 using PetScale.Enums;
@@ -27,7 +26,7 @@ namespace PetScale.Windows;
 
 public sealed class ConfigWindow : Window, IDisposable
 {
-    private readonly DalamudPluginInterface pluginInterface;
+    private readonly IDalamudPluginInterface pluginInterface;
     private readonly Configuration config;
     private readonly PetScale plugin;
     private readonly IPluginLog log;
@@ -60,7 +59,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
     public unsafe ConfigWindow(PetScale _plugin,
         Configuration _config,
-        DalamudPluginInterface _pluginInterface,
+        IDalamudPluginInterface _pluginInterface,
         IPluginLog _pluginLog,
         INotificationManager _notificationManager) : base($"{nameof(PetScale)} Config")
     {

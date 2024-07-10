@@ -11,6 +11,7 @@ public enum PetRow : uint
     Ifrit = 30,
     Titan = 31,
     Garuda = 32,
+    SolarBahamut = 46,
     // SCH Fairies
     Eos = 6,
     Selene = 7,
@@ -28,6 +29,7 @@ public enum PetModel
     Ifrit = 3122,
     Titan = 3124,
     Garuda = 3123,
+    SolarBahamut = 80085,
     // SCH Fairies
     Eos = 407,
     Selene = 408,
