@@ -1,9 +1,8 @@
 using System;
 using System.Collections.Generic;
 
-using Dalamud.Game;
 using Lumina.Excel;
-using Dalamud.Memory;
+using Dalamud.Game;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
@@ -57,10 +56,10 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
         }
     }
 
-    private static unsafe DrawState* ActorDrawState(FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject* actor)
+    private static unsafe DrawState* ActorDrawState(GameObject* actor)
         => (DrawState*)&actor->RenderFlags;
 
-    public static unsafe void ToggleVisibility(FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject* actor)
+    public static unsafe void ToggleVisibility(GameObject* actor)
     {
         if (actor is null || actor->EntityId is 0xE0000000)
         {
@@ -73,7 +72,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
     {
         foreach (var chara in CharacterSpan)
         {
-            if (chara.Value is null || &chara.Value->Character is null)
+            if (chara.Value is null)
             {
                 continue;
             }
@@ -83,7 +82,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
             }
             if (chara.Value->Character.GameObject.EntityId != playerEntityId)
             {
-                queue.Enqueue(MemoryHelper.ReadStringNullTerminated((nint)chara.Value->Character.GameObject.GetName()));
+                queue.Enqueue(chara.Value->Character.NameString);
             }
         }
     }

@@ -29,7 +29,7 @@ public enum PetModel
     Ifrit = 3122,
     Titan = 3124,
     Garuda = 3123,
-    SolarBahamut = 80085,
+    SolarBahamut = 4038,
     // SCH Fairies
     Eos = 407,
     Selene = 408,

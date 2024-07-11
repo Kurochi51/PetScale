@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Dalamud.Memory;
 using Dalamud.Plugin;
 using Dalamud.Utility;
 using Dalamud.Game.Command;
@@ -210,7 +209,7 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            var petName = MemoryHelper.ReadStringNullTerminated((nint)chara.Value->Character.GameObject.GetName());
+            var petName = chara.Value->Character.NameString;
             if (petName.IsNullOrWhitespace() || !petSizeMap.ContainsKey(petName))
             {
                 continue;
@@ -262,8 +261,8 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            var petName = MemoryHelper.ReadStringNullTerminated((nint)pet->Character.GameObject.GetName());
-            var characterName = MemoryHelper.ReadStringNullTerminated((nint)character->GameObject.GetName());
+            var petName = pet->NameString;
+            var characterName = character->NameString;
             if (characterName.IsNullOrWhitespace() || petName.IsNullOrWhitespace())
             {
                 continue;
@@ -381,20 +380,11 @@ public sealed class PetScale : IDalamudPlugin
             DevWindow.Print($"Pet: {entry.Key} - ModelCharaId: {entry.Value.Item2} - IsPetModel: {petModel}");
         }
         var i = 0;
-        foreach (var entry in BattleCharaSpan)
-        {
-            if (entry.Value is null || &entry.Value->Character is null)
-            {
-                continue;
-            }
-            var csChar = &entry.Value->Character;
-            if (!csChar->IsCharacter() || csChar->ObjectKind is not ObjectKind.Pc)
-            {
-                continue;
-            }
-            i++;
-        }
-        DevWindow.Print("Player Characters in BattleCharaSpan: " + i);
+        var charInSpan = BattleCharaSpan.ToArray()
+            .Where(x => x.Value is not null
+                && x.Value->Character.IsCharacter()
+                && x.Value->Character.ObjectKind is ObjectKind.Pc);
+        DevWindow.Print("Player Characters in BattleCharaSpan: " + charInSpan.Count());
     }
 #endif
 
