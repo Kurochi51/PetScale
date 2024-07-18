@@ -48,7 +48,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private const string LongestSize = "Medium";
 
     public Dictionary<string, PetModel> petMap { get; } = new(StringComparer.Ordinal);
-    private Queue<string> players => plugin.players;
+    private Queue<(string Name, ulong ContentId)> players => plugin.players;
     private IList<PetStruct> petData => config.PetData;
     private IFontHandle iconFont => pluginInterface.UiBuilder.IconFontFixedWidthHandle;
 
@@ -144,7 +144,7 @@ public sealed class ConfigWindow : Window, IDisposable
 #endif
         ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
-        DrawComboBox("Characters", charaName, charaWidth, out charaName, players, filter: true);
+        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true);
         ImGui.SameLine();
         DrawComboBox("Pets", petSelection, petWidth, out petSelection, petMap.Keys, filter: false);
         ImGui.SameLine();
@@ -334,12 +334,21 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             throw new NotSupportedException();
         }
+        var tempDic = players.ToDictionary(player => player.Name, cid => cid.ContentId, StringComparer.Ordinal);
         var currentPetData = new PetStruct()
         {
             CharacterName = charaName,
             PetID = petMap[petSelection],
             PetSize = currentPetSize.Key,
         };
+        if (tempDic.TryGetValue(charaName, out var cid))
+        {
+            currentPetData.ContentId = cid;
+        }
+        if (currentPetData.PetID is PetModel.AllPets)
+        {
+            currentPetData.Generic = true;
+        }
         var checkPet = petData
             .SingleOrDefault(data => data.CharacterName.Equals(currentPetData.CharacterName, StringComparison.Ordinal)
             && data.PetID == currentPetData.PetID);
@@ -359,6 +368,14 @@ public sealed class ConfigWindow : Window, IDisposable
             var index = petData.IndexOf(checkPet);
             var entry = "Entry " + petData[index].CharacterName + " with " + petData[index].PetID.ToString() + " changed size from " + sizeMap[petData[index].PetSize] + " to ";
             checkPet.PetSize = currentPetSize.Key;
+            if (checkPet.UpdateRequired())
+            {
+                checkPet.ContentId = cid;
+                if (checkPet.PetID is PetModel.AllPets)
+                {
+                    checkPet.Generic = true;
+                }
+            }
             petData[index] = checkPet;
             log.Debug("Entry {name} with {pet} at {size} got changed.", checkPet.CharacterName, petSelection, checkPet.PetSize);
             CreateNotification(entry + sizeMap[petData[index].PetSize], "Entry changed");
@@ -456,6 +473,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         if (save)
         {
+            config.UpdateConfig();
             config.Save(pluginInterface);
         }
     }

@@ -68,7 +68,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
         *ActorDrawState(actor) ^= DrawState.Invisibility;
     }
 
-    public unsafe void CachePlayerList(uint playerEntityId, Queue<string> queue, Span<Pointer<BattleChara>> CharacterSpan)
+    public unsafe void CachePlayerList(uint playerEntityId, Queue<(string, ulong)> queue, Span<Pointer<BattleChara>> CharacterSpan)
     {
         foreach (var chara in CharacterSpan)
         {
@@ -82,7 +82,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog)
             }
             if (chara.Value->Character.GameObject.EntityId != playerEntityId)
             {
-                queue.Enqueue(chara.Value->Character.NameString);
+                queue.Enqueue((chara.Value->Character.NameString, chara.Value->ContentId));
             }
         }
     }

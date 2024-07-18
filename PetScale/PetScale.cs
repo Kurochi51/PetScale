@@ -53,7 +53,7 @@ public sealed class PetScale : IDalamudPlugin
     };
 
     public WindowSystem WindowSystem { get; } = new("PetScale");
-    public Queue<string> players { get; } = new();
+    public Queue<(string Name, ulong ContentId)> players { get; } = new();
     public bool requestedCache { get; set; } = true;
     public int lastIndexOfOthers { get; set; } = -1;
     private ConfigWindow ConfigWindow { get; init; }
@@ -104,7 +104,7 @@ public sealed class PetScale : IDalamudPlugin
         stopwatch.Start();
 
         _ = Task.Run(InitSheet);
-        ConfigWindow.ProcessPetData(save: false);
+        ConfigWindow.ProcessPetData(save: true);
         QueueOnlyExistingData();
     }
 
@@ -130,9 +130,9 @@ public sealed class PetScale : IDalamudPlugin
     private void QueueOnlyExistingData()
     {
         players.Clear();
-        foreach (var entry in config.PetData.Select(item => item.CharacterName).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var entry in config.PetData.DistinctBy(item => item.CharacterName))
         {
-            players.Enqueue(entry);
+            players.Enqueue((entry.CharacterName, entry.ContentId));
         }
     }
 
@@ -176,11 +176,15 @@ public sealed class PetScale : IDalamudPlugin
         {
             return;
         }
-        if (requestedCache)
+        unsafe
         {
-            playerName ??= player.Name.TextValue;
-            RefreshCache(playerName, player.EntityId);
-            requestedCache = false;
+            if (requestedCache)
+            {
+                var csPlayer = (Character*)player.Address;
+                playerName ??= csPlayer->NameString;
+                RefreshCache(playerName, csPlayer);
+                requestedCache = false;
+            }
         }
         CheckDictionary(player);
     }
@@ -261,14 +265,12 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            var petName = pet->NameString;
-            var characterName = character->NameString;
-            if (characterName.IsNullOrWhitespace() || petName.IsNullOrWhitespace())
+            if (character->NameString.IsNullOrWhitespace() || pet->NameString.IsNullOrWhitespace())
             {
                 continue;
             }
 #if DEBUG
-            DevWindow.Print(petName + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + characterName + " size " + pet->Character.GameObject.Scale);
+            DevWindow.Print(pet->NameString + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + character->NameString + " size " + pet->Character.GameObject.Scale);
 #endif
             if (config.FairySize is not 0 && Utilities.IsFairy(pet->Character.CharacterData.ModelCharaId) && utilities.PetVisible(pet))
             {
@@ -286,31 +288,46 @@ public sealed class PetScale : IDalamudPlugin
                         break;
                 }
             }
-            if (ParseStruct(pet, characterName, petName, pet->Character.CharacterData.ModelCharaId, character->GameObject.EntityId == player.EntityId))
+            if (ParseStruct(pet, character, pet->Character.CharacterData.ModelCharaId, character->GameObject.EntityId == player.EntityId))
             {
                 activePetDictionary[pair.Key] = (pair.Value.character, true);
             }
         }
     }
 
-    private unsafe bool ParseStruct(BattleChara* pet, string characterName, string petName, int modelId, bool isLocalPlayer)
+    private unsafe bool ParseStruct(BattleChara* pet, Character* character, int modelId, bool isLocalPlayer)
     {
-        var petSet = false;
         var modelType = (PetModel)modelId;
         if (!Enum.IsDefined(modelType))
         {
-            return petSet;
+            return false;
         }
+        var savePending = false;
         var allPets = config.PetData.Where(userData => userData.PetID is PetModel.AllPets).ToList();
+        var petSet = config.UpdateNeeded
+            ? OldParse(pet, character, isLocalPlayer, allPets, modelType, out savePending)
+            : NewParse(pet, character, isLocalPlayer, allPets, modelType);
+        if (savePending)
+        {
+            config.UpdateNeeded = config.PetData.Any(data => data.UpdateRequired());
+            config.Save(pluginInterface);
+        }
+        return petSet;
+    }
 
+    private unsafe bool OldParse(BattleChara* pet, Character* character, bool isLocalPlayer, List<PetStruct> allPets, PetModel modelType, out bool savePending)
+    {
+        var petSet = false;
+        savePending = false;
+        var petName = pet->NameString;
         var index = lastIndexOfOthers >= 0 ? lastIndexOfOthers : -1;
         for (var i = 0; i <= index; i++)
         {
-            var userData = config.PetData[i];
             if (isLocalPlayer)
             {
                 continue;
             }
+            var userData = config.PetData[i];
             // General Pet for General Character
             if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
                 && userData.PetID is PetModel.AllPets)
@@ -319,7 +336,7 @@ public sealed class PetScale : IDalamudPlugin
                 petSet = true;
             }
             // Specific Pet for General Character
-            if (userData.CharacterName.Equals(Others, ordinalComparison) && userData.PetID == modelType)
+            if (userData.Generic && userData.PetID == modelType)
             {
                 SetScale(pet, userData, petName);
                 petSet = true;
@@ -328,10 +345,13 @@ public sealed class PetScale : IDalamudPlugin
         for (var i = index + 1; i < config.PetData.Count; i++)
         {
             var userData = config.PetData[i];
-            if (!userData.CharacterName.Equals(characterName, ordinalComparison))
+            if (!userData.CharacterName.Equals(character->NameString, ordinalComparison))
             {
                 continue;
             }
+            userData.ContentId = character->ContentId;
+            config.PetData[i] = userData;
+            savePending = true;
             // General Pet for Specific Character
             if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
                 && userData.PetID is PetModel.AllPets)
@@ -340,7 +360,7 @@ public sealed class PetScale : IDalamudPlugin
                 petSet = true;
             }
             // Specific Pet for Specific Character
-            if (userData.CharacterName.Equals(characterName, ordinalComparison) && userData.PetID == modelType)
+            if (userData.CharacterName.Equals(character->NameString, ordinalComparison) && userData.PetID == modelType)
             {
                 SetScale(pet, userData, petName);
                 petSet = true;
@@ -349,12 +369,60 @@ public sealed class PetScale : IDalamudPlugin
         return petSet;
     }
 
-    private void RefreshCache(string playerName, uint playerEntityId)
+    private unsafe bool NewParse(BattleChara* pet, Character* character, bool isLocalPlayer, List<PetStruct> allPets, PetModel modelType)
+    {
+        var petSet = false;
+        var petName = pet->NameString;
+        var index = lastIndexOfOthers >= 0 ? lastIndexOfOthers : -1;
+        for (var i = 0; i <= index; i++)
+        {
+            var userData = config.PetData[i];
+            if (isLocalPlayer || !userData.Generic)
+            {
+                continue;
+            }
+            // General Pet for General Character
+            if (allPets.Exists(item => item.ContentId == userData.ContentId) && userData.PetID is PetModel.AllPets)
+            {
+                SetScale(pet, userData, petName);
+                petSet = true;
+            }
+            // Specific Pet for General Character
+            if (userData.PetID == modelType)
+            {
+                SetScale(pet, userData, petName);
+                petSet = true;
+            }
+        }
+        for (var i = index + 1; i < config.PetData.Count; i++)
+        {
+            var userData = config.PetData[i];
+            if (userData.ContentId != character->ContentId)
+            {
+                continue;
+            }
+            // General Pet for Specific Character
+            if (allPets.Exists(item => item.ContentId == userData.ContentId) && userData.PetID is PetModel.AllPets && userData.Generic)
+            {
+                SetScale(pet, userData, petName);
+                petSet = true;
+            }
+            // Specific Pet for Specific Character
+            if (userData.PetID == modelType)
+            {
+                SetScale(pet, userData, petName);
+                petSet = true;
+            }
+        }
+        return petSet;
+    }
+
+    private unsafe void RefreshCache(string playerName, Character* player)
     {
         players.Clear();
-        players.Enqueue(playerName);
-        players.Enqueue(Others);
-        utilities.CachePlayerList(playerEntityId, players, BattleCharaSpan);
+        players.Enqueue((playerName, player->ContentId));
+        players.Enqueue((Others, 1));
+        utilities.CachePlayerList(player->EntityId, players, BattleCharaSpan);
     }
 
     private unsafe void SetScale(BattleChara* pet, in PetStruct userData, string petName)
@@ -379,12 +447,14 @@ public sealed class PetScale : IDalamudPlugin
             var petModel = entry.Value.Item1 is not null ? "True - " + entry.Value.Item1.ToString() : "False";
             DevWindow.Print($"Pet: {entry.Key} - ModelCharaId: {entry.Value.Item2} - IsPetModel: {petModel}");
         }
-        var i = 0;
         var charInSpan = BattleCharaSpan.ToArray()
-            .Where(x => x.Value is not null
-                && x.Value->Character.IsCharacter()
+            .Count(x => x.Value is not null
                 && x.Value->Character.ObjectKind is ObjectKind.Pc);
-        DevWindow.Print("Player Characters in BattleCharaSpan: " + charInSpan.Count());
+        var nonCharInSpan = BattleCharaSpan.ToArray()
+            .Count(x => x.Value is not null
+            && x.Value->Character.ObjectKind is not ObjectKind.Pc);
+        DevWindow.Print("Player Characters in BattleCharaSpan: " + charInSpan);
+        DevWindow.Print("Not Player Characters in BattleCharaSpan: " + nonCharInSpan);
     }
 #endif
 
