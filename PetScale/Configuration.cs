@@ -19,9 +19,9 @@ public class Configuration : IPluginConfiguration
     {
         for (var i = 0; i < PetData.Count; i++)
         {
-            if (PetData[i].CharacterName.Equals("Other players", StringComparison.Ordinal))
+            if (PetData[i].CharacterName.Equals(PetScale.Others, StringComparison.Ordinal))
             {
-                PetData[i] = PetData[i] with { Generic = true, ContentId = 1 };
+                PetData[i] = PetData[i] with { Generic = true, ContentId = PetScale.OthersContendId };
             }
             else if (PetData[i].PetID is Enums.PetModel.AllPets)
             {

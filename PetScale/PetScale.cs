@@ -27,6 +27,7 @@ public sealed class PetScale : IDalamudPlugin
 {
     private const string CommandName = "/pscale";
     public const string Others = "Other players";
+    public const ulong OthersContendId = 1;
 
     private readonly IDalamudPluginInterface pluginInterface;
     private readonly Configuration config;
@@ -180,9 +181,8 @@ public sealed class PetScale : IDalamudPlugin
         {
             if (requestedCache)
             {
-                var csPlayer = (Character*)player.Address;
-                playerName ??= csPlayer->NameString;
-                RefreshCache(playerName, csPlayer);
+                playerName ??= player.Name.TextValue;
+                RefreshCache(playerName, clientState.LocalContentId, player.EntityId);
                 requestedCache = false;
             }
         }
@@ -417,12 +417,12 @@ public sealed class PetScale : IDalamudPlugin
         return petSet;
     }
 
-    private unsafe void RefreshCache(string playerName, Character* player)
+    private unsafe void RefreshCache(string playerName, ulong contentId, uint entityId)
     {
         players.Clear();
-        players.Enqueue((playerName, player->ContentId));
-        players.Enqueue((Others, 1));
-        utilities.CachePlayerList(player->EntityId, players, BattleCharaSpan);
+        players.Enqueue((playerName, contentId));
+        players.Enqueue((Others, OthersContendId));
+        utilities.CachePlayerList(entityId, players, BattleCharaSpan);
     }
 
     private unsafe void SetScale(BattleChara* pet, in PetStruct userData, string petName)
