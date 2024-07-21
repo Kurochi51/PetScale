@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Dalamud.Plugin;
 using Dalamud.Configuration;
 using PetScale.Structs;
+using PetScale.Enums;
 
 namespace PetScale;
 
@@ -13,6 +14,7 @@ public class Configuration : IPluginConfiguration
     public int Version { get; set; } = 0;
     public IList<PetStruct> PetData { get; set; } = [];
     public int FairySize { get; set; } = 0;
+    public ushort HomeWorld { get; set; } = 0;
     public bool UpdateNeeded { get; internal set; }
 
     public void UpdateConfig()
@@ -21,9 +23,9 @@ public class Configuration : IPluginConfiguration
         {
             if (PetData[i].CharacterName.Equals(PetScale.Others, StringComparison.Ordinal))
             {
-                PetData[i] = PetData[i] with { Generic = true, ContentId = PetScale.OthersContendId };
+                PetData[i] = PetData[i] with { Generic = true, ContentId = PetScale.OthersContendId, HomeWorld = PetScale.OthersHomeWorld };
             }
-            else if (PetData[i].PetID is Enums.PetModel.AllPets)
+            else if (PetData[i].PetID is PetModel.AllPets)
             {
                 PetData[i] = PetData[i] with { Generic = true };
             }

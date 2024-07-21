@@ -5,8 +5,7 @@ using ImGuiNET;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalamud.Interface.Windowing;
-using FFXIVClientStructs.FFXIV.Client.Game.Object;
-using FFXIVClientStructs.Interop;
+using Dalamud.Game.ClientState.Objects.Types;
 using PetScale.Helpers;
 
 namespace PetScale.Windows;
@@ -14,7 +13,7 @@ namespace PetScale.Windows;
 public class DevWindow : Window
 {
     private static readonly List<string> PrintLines = [];
-    private static readonly Queue<Pointer<GameObject>> RedrawObjects = new();
+    private static readonly Queue<IGameObject> RedrawObjects = new();
 #pragma warning disable S4487
     private readonly IPluginLog log;
     private readonly IDalamudPluginInterface pluginInterface;
@@ -63,8 +62,12 @@ public class DevWindow : Window
         PrintLines.Add(text);
     }
 
-    public static unsafe void AddObjects(GameObject* actor)
+    public static unsafe void AddObjects(IGameObject? actor)
     {
+        if (actor is null)
+        {
+            return;
+        }
         if (RedrawObjects.Contains(actor))
         {
             return;

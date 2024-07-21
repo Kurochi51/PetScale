@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 
 using Dalamud.Utility;
@@ -11,6 +12,8 @@ public record struct PetStruct
     public string CharacterName { get; set; }
     public required PetModel PetID { get; set; }
     public required PetSize PetSize { get; set; }
+    public float AltPetSize { get; set; }
+    public ushort HomeWorld { get; set; }
     public ulong ContentId { get; set; }
     public bool Generic { get; set; }
 
@@ -20,8 +23,8 @@ public record struct PetStruct
     }
 
     public readonly bool IsDefault()
-        => CharacterName.IsNullOrWhitespace() || CharacterName.Equals("Default", System.StringComparison.Ordinal);
+        => CharacterName.IsNullOrWhitespace() || CharacterName.Equals("Default", StringComparison.Ordinal);
 
     public readonly bool UpdateRequired()
-        => ContentId is 0;
+        => ContentId is 0 || HomeWorld is 0;
 }

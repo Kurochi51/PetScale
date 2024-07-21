@@ -16,6 +16,11 @@ public enum PetRow : uint
     Eos = 6,
     Selene = 7,
     Seraph = 15,
+    // MCH Things
+    Rook = 8,
+    AutomatonQueen = 18,
+    // DRK Emo Clone
+    Esteem = 17,
 }
 
 /// <summary>
@@ -34,6 +39,11 @@ public enum PetModel
     Eos = 407,
     Selene = 408,
     Seraph = 2619,
+    // MCH Things
+    Rook = 1027,
+    AutomatonQueen = 2618,
+    // DRK Emo Clone
+    Esteem = 2621,
 }
 
 public enum PetSize
@@ -41,4 +51,13 @@ public enum PetSize
     SmallModelScale,
     MediumModelScale,
     LargeModelScale,
+    Custom,
+}
+
+public enum PetState
+{
+    Off,
+    Self,
+    Others,
+    All,
 }
