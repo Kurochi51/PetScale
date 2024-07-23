@@ -249,47 +249,47 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         switch (size)
         {
             case PetSize.SmallModelScale:
+            {
+                return pet switch
                 {
-                    return pet switch
-                    {
-                        PetModel.SolarBahamut => 0.13f,
-                        PetModel.Bahamut => 0.1f,
-                        PetModel.Ifrit => 0.25f,
-                        PetModel.Phoenix
-                        or PetModel.Titan
-                        or PetModel.Garuda
-                        => 0.33f,
-                        _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
-                    };
-                }
+                    PetModel.SolarBahamut => 0.13f,
+                    PetModel.Bahamut => 0.1f,
+                    PetModel.Ifrit => 0.25f,
+                    PetModel.Phoenix
+                    or PetModel.Titan
+                    or PetModel.Garuda
+                    => 0.33f,
+                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                };
+            }
             case PetSize.MediumModelScale:
+            {
+                return pet switch
                 {
-                    return pet switch
-                    {
-                        PetModel.SolarBahamut => 0.26f,
-                        PetModel.Bahamut => 0.2f,
-                        PetModel.Ifrit => 0.5f,
-                        PetModel.Phoenix
-                        or PetModel.Titan
-                        or PetModel.Garuda
-                        => 0.66f,
-                        _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
-                    };
-                }
+                    PetModel.SolarBahamut => 0.26f,
+                    PetModel.Bahamut => 0.2f,
+                    PetModel.Ifrit => 0.5f,
+                    PetModel.Phoenix
+                    or PetModel.Titan
+                    or PetModel.Garuda
+                    => 0.66f,
+                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                };
+            }
             case PetSize.LargeModelScale:
+            {
+                return pet switch
                 {
-                    return pet switch
-                    {
-                        PetModel.SolarBahamut => 0.4f,
-                        PetModel.Bahamut => 0.3f,
-                        PetModel.Ifrit => 0.75f,
-                        PetModel.Phoenix
-                        or PetModel.Titan
-                        or PetModel.Garuda
-                        => 1f,
-                        _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
-                    };
-                }
+                    PetModel.SolarBahamut => 0.4f,
+                    PetModel.Bahamut => 0.3f,
+                    PetModel.Ifrit => 0.75f,
+                    PetModel.Phoenix
+                    or PetModel.Titan
+                    or PetModel.Garuda
+                    => 1f,
+                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                };
+            }
             default:
                 throw new ArgumentException("Invalid PetSize provided.", size.ToString());
         }
