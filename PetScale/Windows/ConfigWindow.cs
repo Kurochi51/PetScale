@@ -22,6 +22,7 @@ using FFXIVClientStructs.FFXIV.Client.Graphics.Kernel;
 using PetScale.Helpers;
 using PetScale.Structs;
 using PetScale.Enums;
+using System.Text;
 
 namespace PetScale.Windows;
 
@@ -32,6 +33,8 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly PetScale plugin;
     private readonly IPluginLog log;
     private readonly INotificationManager notificationManager;
+    private readonly Utilities utilities;
+    private readonly Dictionary<string, string?> comboFilter = [];
     private readonly Dictionary<PetSize, string> sizeMap = new()
     {
         { PetSize.SmallModelScale,   "Small" },
@@ -42,34 +45,36 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly CancellationTokenSource cts;
     private readonly CancellationToken cToken;
     private readonly Notification notification = new();
-    private const string DefaultPetSelection = "Pet";
-    private const string DefaultSizeSelection = "Size";
-    private const string DefaultCharacterSelection = "Characters";
-    private const string LongestCharaName = "WWWWWWWWWWWWWWW WWWWW@Pandaemonium";
-    private const string LongestSize = "Medium";
+    private const string DefaultPetSelection = "Pet", DefaultSizeSelection = "Size", DefaultCharacterSelection = "Characters", DefaultWorldSelection = "World";
+    private const string LongestSize = "Medium", LongestWorldName = "Pandaemonium", LongestCharaName = "WWWWWWWWWWWWWWW WWWWW" + "@" + LongestWorldName;
+    private const string WorldSelectModal = "World Select";
 
-    public Dictionary<string, PetModel> petMap { get; } = new(StringComparer.Ordinal);
-    public Dictionary<string, PetModel> otherPetMap { get; } = new(StringComparer.Ordinal);
-    private Queue<(string Name, ulong ContentId)> players => plugin.players;
+    public Dictionary<string, PetModel> presetPetMap { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, PetModel> customPetMap { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> worldMap { get; } = new(StringComparer.Ordinal);
+    private Queue<(string Name, ulong ContentId, ushort HomeWorld)> players => plugin.players;
     private IList<PetStruct> petData => config.PetData;
     private IFontHandle iconFont => pluginInterface.UiBuilder.IconFontFixedWidthHandle;
 
     private string petSelection = DefaultPetSelection, longestPetName = string.Empty, sizeSelection = DefaultSizeSelection, charaName = DefaultCharacterSelection;
-    private string filterTemp = string.Empty, otherPetSelection = DefaultPetSelection;
-    private float tableButtonAlignmentOffset, charaWidth, petWidth, sizesWidth, tempPetSize = 1f;
-    private bool fontChange;
+    private string filterTemp = string.Empty, otherPetSelection = DefaultPetSelection, world = DefaultWorldSelection;
+    private float tableButtonAlignmentOffset, charaWidth, petWidth, sizesWidth, worldWidth, tempPetSize = 1f;
+    private bool fontChange, showModal = false;
+    private Tab currentTab;
 
     public unsafe ConfigWindow(PetScale _plugin,
         Configuration _config,
         IDalamudPluginInterface _pluginInterface,
         IPluginLog _pluginLog,
-        INotificationManager _notificationManager) : base($"{nameof(PetScale)} Config")
+        INotificationManager _notificationManager,
+        Utilities _utils) : base($"{nameof(PetScale)} Config")
     {
         plugin = _plugin;
         config = _config;
         pluginInterface = _pluginInterface;
         log = _pluginLog;
         notificationManager = _notificationManager;
+        utilities = _utils;
         SizeConstraints = new WindowSizeConstraints()
         {
             MinimumSize = new Vector2(470, 365),
@@ -82,6 +87,8 @@ public sealed class ConfigWindow : Window, IDisposable
         deleteButtonIcon = FontAwesomeIcon.Trash.ToIconString();
         addButtonIcon = FontAwesomeIcon.Plus.ToIconString();
         pluginInterface.UiBuilder.DefaultFontHandle.ImFontChanged += QueueColumnWidthChange;
+
+        _ = Task.Run(() => utilities.InitWorldMap(worldMap), cToken);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -99,6 +106,8 @@ public sealed class ConfigWindow : Window, IDisposable
         charaName = DefaultCharacterSelection;
         petSelection = otherPetSelection = DefaultPetSelection;
         sizeSelection = DefaultSizeSelection;
+        world = DefaultWorldSelection;
+        comboFilter.Clear();
     }
 
     public override void Draw()
@@ -109,9 +118,13 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             return;
         }
-        GeneralTab();
-        OtherPetsTab();
+        PresetTab();
+        CustomTab();
         MiscTab();
+        foreach (var item in comboFilter)
+        {
+            DevWindow.Print("Filter stuff: " + item.Key + " - " + (item.Value ?? "null"));
+        }
     }
 
     private void MiscTab()
@@ -121,42 +134,44 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             return;
         }
+        currentTab = Tab.None;
         DrawRadioButtons(
             "Scale SCH fairy to the size of other in-game fairies",
             () =>
             {
                 ImGui.SameLine();
-                ImGuiComponents.HelpMarker("Seraph is excluded, as she's bigger by default");
+                ImGuiComponents.HelpMarker("Seraph is excluded, as she's bigger by default.\nThis will be overwritten by any size set for Eos or Selene.");
             },
             config,
-            c => c.FairySize,
-            (c, value) => c.FairySize = value,
+            c => (int)c.FairyState,
+            (c, value) => c.FairyState = (PetState)value,
             "Off", "Self", "Others", "All");
         DrawBottomButtons(onlyClose: true);
     }
 
-    private void OtherPetsTab()
+    private void CustomTab()
     {
         using var otherPetsTab = ImRaii.TabItem("Other Pets");
         if (!otherPetsTab)
         {
             return;
         }
+        currentTab = Tab.Others;
         ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
-        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true);
+        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true);
         ImGui.SameLine();
-        DrawComboBox("Pets", otherPetSelection, petWidth, out otherPetSelection, otherPetMap.Keys, filter: false);
+        DrawComboBox("Pets", otherPetSelection, petWidth, out otherPetSelection, customPetMap.Keys, filter: false);
         ImGui.SameLine();
         ImGui.SetNextItemWidth(sizesWidth);
         if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal)
-            && tempPetSize < Utilities.GetMinSize(otherPetMap[otherPetSelection]))
+            && tempPetSize < Utilities.GetMinSize(customPetMap[otherPetSelection]))
         {
-            tempPetSize = Utilities.GetMinSize(otherPetMap[otherPetSelection]);
+            tempPetSize = Utilities.GetMinSize(customPetMap[otherPetSelection]);
         }
         if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
         {
-            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, Utilities.GetMinSize(otherPetMap[otherPetSelection]), 4f, "%.3g", ImGuiSliderFlags.AlwaysClamp);
+            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, Utilities.GetMinSize(customPetMap[otherPetSelection]), 4f, "%.3g", ImGuiSliderFlags.AlwaysClamp);
             if (ImGui.IsItemHovered())
             {
                 ImGui.SetTooltip("Pet Size");
@@ -171,7 +186,7 @@ public sealed class ConfigWindow : Window, IDisposable
             }
         }
         ImGui.SameLine();
-        if (IconButton(iconFont, addButtonIcon, "AddButton", 1))
+        if (ImGuiUtils.IconButton(iconFont, addButtonIcon, "AddButton", 1))
         {
             buttonPressed = true;
         }
@@ -197,25 +212,26 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawBottomButtons(onlyClose: false, otherData: true);
     }
 
-    private void GeneralTab()
+    private void PresetTab()
     {
-        using var generalTab = ImRaii.TabItem("Summoner Pets");
+        using var generalTab = ImRaii.TabItem("Preset Pets");
         if (!generalTab)
         {
             return;
         }
+        currentTab = Tab.Summoner;
 #if DEBUG
         DevWindow.Print("Summon entries: " + petData.Count.ToString());
 #endif
         ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
-        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true);
+        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true);
         ImGui.SameLine();
-        DrawComboBox("Pets", petSelection, petWidth, out petSelection, petMap.Keys, filter: false);
+        DrawComboBox("Pets", petSelection, petWidth, out petSelection, presetPetMap.Keys, filter: false);
         ImGui.SameLine();
         DrawComboBox("Sizes", sizeSelection, sizesWidth, out sizeSelection, sizeMap.Values, filter: false);
         ImGui.SameLine();
-        if (IconButton(iconFont, addButtonIcon, "AddButton", 1))
+        if (ImGuiUtils.IconButton(iconFont, addButtonIcon, "AddButton", 1))
         {
             buttonPressed = true;
         }
@@ -259,10 +275,10 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TableSetupColumn("Character", ImGuiTableColumnFlags.WidthFixed, charaWidth);
         ImGui.TableSetupColumn("Pet", ImGuiTableColumnFlags.WidthFixed, petWidth);
         ImGui.TableSetupColumn("PetSize", ImGuiTableColumnFlags.WidthFixed, sizesWidth);
-        ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, IconButtonSize(iconFont, deleteButtonIcon).X);
+        ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).X);
         var itemRemoved = false;
         var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
-        clipper.Begin(petData.Count, IconButtonSize(iconFont, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2));
+        clipper.Begin(petData.Count, ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2));
 
         var clipperBreak = false;
         while (clipper.Step())
@@ -283,24 +299,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 {
                     continue;
                 }
-                ImGui.TableNextRow();
-                var buttonId = "##" + i.ToString(CultureInfo.CurrentCulture);
-                var item = petData[i];
-
-                ImGui.TableSetColumnIndex(0);
-                ImGui.TextUnformatted(" " + item.CharacterName);
-                ImGui.TableSetColumnIndex(1);
-                ImGui.TextUnformatted(item.PetID.ToString());
-                ImGui.TableSetColumnIndex(2);
-                ImGui.TextUnformatted(customSize ? item.AltPetSize.ToString(CultureInfo.CurrentCulture) : sizeMap[item.PetSize]);
-                ImGui.TableSetColumnIndex(3);
-                ImGui.SetCursorPosX(tableButtonAlignmentOffset);
-                if (IconButton(iconFont, deleteButtonIcon, buttonId + deleteButtonIcon, 1))
-                {
-                    petData.RemoveAt(i);
-                    CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + (customSize ? item.AltPetSize.ToString(CultureInfo.CurrentCulture) : sizeMap[item.PetSize]) + " was removed.", "Entry removed");
-                    itemRemoved = true;
-                }
+                DisplayTableRow(petData[i], i, customSize, "##" + i.ToString(CultureInfo.CurrentCulture), ref itemRemoved);
             }
         }
         clipper.End();
@@ -311,25 +310,84 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private void DrawComboBox<T>(string label, string current, float width, out string result, IReadOnlyCollection<T> list, bool filter) where T : notnull
+    private void DisplayTableRow(PetStruct item, int index, bool customSize, string buttonId, ref bool itemRemoved)
+    {
+        ImGui.TableNextRow();
+        ImGui.TableSetColumnIndex(0);
+        ImGui.TextUnformatted(" " + item.CharacterName);
+        ImGui.TableSetColumnIndex(1);
+        ImGui.TextUnformatted(item.PetID.ToString());
+        ImGui.TableSetColumnIndex(2);
+        if (customSize)
+        {
+            ImGuiUtils.CenterText(item.AltPetSize.ToString(CultureInfo.CurrentCulture), sizesWidth);
+        }
+        else
+        {
+            ImGui.TextUnformatted(sizeMap[item.PetSize]);
+        }
+        ImGui.TableSetColumnIndex(3);
+        ImGui.SetCursorPosX(tableButtonAlignmentOffset);
+        if (ImGuiUtils.IconButton(iconFont, deleteButtonIcon, buttonId + deleteButtonIcon, 1))
+        {
+            petData.RemoveAt(index);
+            CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + (customSize ? item.AltPetSize.ToString(CultureInfo.CurrentCulture) : sizeMap[item.PetSize]) + " was removed.", "Entry removed");
+            itemRemoved = true;
+        }
+    }
+
+    // I don't like the way filters are managed, but I can't think of a better way
+    private void DrawComboBox<T>(string label, string current, float width, out string result, 
+        IReadOnlyCollection<T> list, bool filter, bool newEntryPossible = false) where T : notnull
     {
         ImGui.SetNextItemWidth(width);
-        using var combo = ImRaii.Combo("##Combo" + label, current);
+        var comboLabel = "##Combo" + label;
+        using var combo = ImRaii.Combo(comboLabel, current);
         result = current;
         if (!combo)
         {
+            if (filter && comboFilter.ContainsValue(comboLabel))
+            {
+                comboFilter.Remove(comboLabel);
+            }
             return;
         }
         var tempList = list.Select(item => item.ToString()!).ToList();
-        if (tempList.Count > 0 && filter)
+        if (tempList.Count > 1 && filter)
         {
             tempList.Sort(2, tempList.Count - 2, StringComparer.InvariantCulture);
         }
         if (filter)
         {
+            comboLabel += "_" + currentTab.ToString();
+            comboFilter.TryAdd(comboLabel, null);
+            if (comboFilter[comboLabel] is null)
+            {
+                comboFilter[comboLabel] = string.Empty;
+            }
             ImGui.SetNextItemWidth(width);
-            ImGui.InputTextWithHint("##Filter" + label, "Filter..", ref filterTemp, 30);
-            tempList = tempList.Where(item => item.Contains(filterTemp, StringComparison.OrdinalIgnoreCase)).ToList();
+            var filterStr = comboFilter[comboLabel];
+            if (ImGui.InputTextWithHint("##Filter" + label, newEntryPossible ? "New Entry or Filter.." : "Filter..", ref filterStr, 21, ImGuiInputTextFlags.EnterReturnsTrue))
+            {
+                comboFilter[comboLabel] = filterStr;
+                log.Debug("filter matches {a}", tempList.Count(item => item.Contains(comboFilter[comboLabel]!, StringComparison.OrdinalIgnoreCase)));
+                if (newEntryPossible && tempList.Count(item => item.Contains(comboFilter[comboLabel]!, StringComparison.OrdinalIgnoreCase)) is 0)
+                {
+                    showModal = true;
+                    filterStr = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(comboFilter[comboLabel]!.ToLower(CultureInfo.CurrentCulture));
+                    ImGui.OpenPopup(WorldSelectModal);
+                }
+            }
+            comboFilter[comboLabel] = filterStr;
+            if (newEntryPossible && ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("New entry can be made if your search doesn't return any returns in the list");
+            }
+            if (PopupModal(WorldSelectModal, comboFilter[comboLabel]!))
+            {
+                comboFilter[comboLabel] = string.Empty;
+            }
+            tempList = tempList.Where(item => item.Contains(comboFilter[comboLabel]!, StringComparison.OrdinalIgnoreCase)).ToList();
         }
         var itemCount = tempList.Count;
         var height = ImGui.GetTextLineHeightWithSpacing() * Math.Min(itemCount + 1.5f, 8);
@@ -371,44 +429,24 @@ public sealed class ConfigWindow : Window, IDisposable
         clipper.Destroy();
     }
 
-    private static Vector2 IconButtonSize(IFontHandle fontHandle, string icon)
+    private void CheckOtherPossibleEntry(string? altName = null)
     {
-        using (fontHandle.Push())
-        {
-            return new Vector2(ImGuiHelpers.GetButtonSize(icon).X, ImGui.GetFrameHeight());
-        }
-    }
-
-    // widthOffset is a pain in the ass, at 100% you want 0, <100% you want 1 or more, >100% it entirely depends on whether you get a non-repeating divison or not... maybe?
-    // also this entirely varies for each icon, so good luck aligning everything
-    private static bool IconButton(IFontHandle fontHandle, string icon, string buttonIDLabel, float widthOffset = 0f)
-    {
-        using (fontHandle.Push())
-        {
-            var cursorScreenPos = ImGui.GetCursorScreenPos();
-            var frameHeight = ImGui.GetFrameHeight();
-            var result = ImGui.Button("##" + buttonIDLabel, new Vector2(ImGuiHelpers.GetButtonSize(icon).X, frameHeight));
-            var pos = new Vector2(cursorScreenPos.X + ImGui.GetStyle().FramePadding.X + widthOffset,
-                cursorScreenPos.Y + (frameHeight / 2f) - (ImGui.CalcTextSize(icon).Y / 2f));
-            ImGui.GetWindowDrawList().AddText(pos, ImGui.GetColorU32(ImGuiCol.Text), icon);
-
-            return result;
-        }
-    }
-
-    private void CheckOtherPossibleEntry()
-    {
-        var tempDic = players.ToDictionary(player => player.Name, cid => cid.ContentId, StringComparer.Ordinal);
+        var tempDic = players.ToDictionary(player => player.Name, cid => (cid.ContentId, cid.HomeWorld), StringComparer.Ordinal);
         var currentPetData = new PetStruct()
         {
-            CharacterName = charaName,
-            PetID = otherPetMap[otherPetSelection],
+            CharacterName = altName ?? charaName,
+            PetID = customPetMap[otherPetSelection],
             PetSize = PetSize.Custom,
             AltPetSize = tempPetSize,
         };
+        if (!altName.IsNullOrWhitespace())
+        {
+            currentPetData.HomeWorld = utilities.GetHomeWorldId(world);
+        }
         if (tempDic.TryGetValue(charaName, out var cid))
         {
-            currentPetData.ContentId = cid;
+            currentPetData.ContentId = cid.ContentId;
+            currentPetData.HomeWorld = cid.HomeWorld;
         }
         if (currentPetData.PetID is PetModel.AllPets)
         {
@@ -435,7 +473,8 @@ public sealed class ConfigWindow : Window, IDisposable
             checkPet.AltPetSize = tempPetSize;
             if (checkPet.UpdateRequired())
             {
-                checkPet.ContentId = cid;
+                checkPet.ContentId = cid.ContentId;
+                checkPet.HomeWorld = cid.HomeWorld;
                 if (checkPet.PetID is PetModel.AllPets)
                 {
                     checkPet.Generic = true;
@@ -448,7 +487,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ProcessPetData(save: true);
     }
 
-    private void CheckPossibleEntry()
+    private void CheckPossibleEntry(string? altName = null)
     {
         var currentPetSize = sizeMap.SingleOrDefault(x => x.Value.Equals(sizeSelection, StringComparison.OrdinalIgnoreCase));
         if (currentPetSize.Value is null)
@@ -458,10 +497,14 @@ public sealed class ConfigWindow : Window, IDisposable
         var tempDic = players.ToDictionary(player => player.Name, cid => cid.ContentId, StringComparer.Ordinal);
         var currentPetData = new PetStruct()
         {
-            CharacterName = charaName,
-            PetID = petMap[petSelection],
+            CharacterName = altName ?? charaName,
+            PetID = presetPetMap[petSelection],
             PetSize = currentPetSize.Key,
         };
+        if (!altName.IsNullOrWhitespace())
+        {
+            currentPetData.HomeWorld = utilities.GetHomeWorldId(world);
+        }
         if (tempDic.TryGetValue(charaName, out var cid))
         {
             currentPetData.ContentId = cid;
@@ -552,7 +595,7 @@ public sealed class ConfigWindow : Window, IDisposable
         if (fontChange || charaWidth is 0 || petWidth is 0 || sizesWidth is 0)
         {
             var currentSize = ImGui.CalcTextSize(longestPetName).X;
-            foreach (var petName in petMap.Select(pet => pet.Key))
+            foreach (var petName in presetPetMap.Select(pet => pet.Key))
             {
                 var size = ImGui.CalcTextSize(petName).X;
                 if (size > currentSize)
@@ -561,7 +604,7 @@ public sealed class ConfigWindow : Window, IDisposable
                     currentSize = size;
                 }
             }
-            foreach (var petName in otherPetMap.Select(pet => pet.Key))
+            foreach (var petName in customPetMap.Select(pet => pet.Key))
             {
                 var size = ImGui.CalcTextSize(petName).X;
                 if (size > currentSize)
@@ -570,13 +613,14 @@ public sealed class ConfigWindow : Window, IDisposable
                     currentSize = size;
                 }
             }
+            worldWidth = ImGui.CalcTextSize(LongestWorldName).X + (ImGui.GetStyle().FramePadding.X * 2);
             charaWidth = ImGui.CalcTextSize(LongestCharaName).X + (ImGui.GetStyle().FramePadding.X * 2);
             petWidth = ImGui.CalcTextSize(longestPetName).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
             sizesWidth = ImGui.CalcTextSize(LongestSize).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
             tableButtonAlignmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
             if (SizeConstraints.HasValue)
             {
-                var newWidth = tableButtonAlignmentOffset + IconButtonSize(iconFont, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
+                var newWidth = tableButtonAlignmentOffset + ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
                 SizeConstraints = new WindowSizeConstraints()
                 {
                     MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),
@@ -681,8 +725,8 @@ public sealed class ConfigWindow : Window, IDisposable
                 setOption(config, radioOption);
                 config.Save(pluginInterface);
             }
-            space -= ImGui.CalcTextSize(buttons[i]).X + GetStyleWidth();
-            if (i + 1 < buttons.Length && space > ImGui.CalcTextSize(buttons[i + 1]).X + GetStyleWidth())
+            space -= ImGui.CalcTextSize(buttons[i]).X + ImGuiUtils.GetStyleWidth();
+            if (i + 1 < buttons.Length && space > ImGui.CalcTextSize(buttons[i + 1]).X + ImGuiUtils.GetStyleWidth())
             {
                 ImGui.SameLine();
             }
@@ -693,8 +737,67 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private static float GetStyleWidth()
-        => (ImGui.GetStyle().FramePadding.X * 2) + (ImGui.GetStyle().ItemSpacing.X * 2) + ImGui.GetStyle().WindowPadding.X + ImGui.GetStyle().ItemInnerSpacing.X;
+    private bool PopupModal(string label, string newCharacter)
+    {
+        var size = new Vector2(ImGui.CalcTextSize(newCharacter + " - ").X + worldWidth + (ImGui.GetStyle().FramePadding.X * 2) + 25, 150f);
+        var buttonSize = ImGui.CalcTextSize("Add character").X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
+        if (size.X < buttonSize)
+        {
+            size.X = buttonSize;
+        }
+        ImGui.SetNextWindowSize(size);
+        using var modal = ImRaii.PopupModal(label, ref showModal, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoScrollbar);
+        if (!modal || currentTab is Tab.None)
+        {
+            return false;
+        }
+        ImGuiUtils.CenterCursor(size, new Vector2(worldWidth + ImGui.CalcTextSize(newCharacter).X, ImGui.GetTextLineHeightWithSpacing()));
+        ImGui.TextUnformatted(newCharacter);
+        ImGui.SameLine();
+        DrawComboBox("World Selection", world, worldWidth, out world, worldMap.Keys, filter: true);
+        ImGui.SetCursorPosY(ImGui.GetContentRegionMax().Y - (ImGui.GetFrameHeight() / 2f) - (ImGui.CalcTextSize("Add character").Y / 2f)  - (3f * ImGuiHelpers.GlobalScale) + (ImGui.GetScrollY() * 2));
+        //ImGui.SetCursorPosY(ImGui.GetWindowContentRegionMax().Y - ImGui.GetFrameHeight() - (3f * ImGuiHelpers.GlobalScale) + (ImGui.GetScrollY() * 2));
+        ImGui.SetCursorPosX((ImGui.GetContentRegionMax().X / 2 ) - (ImGuiHelpers.GetButtonSize("Add character").X / 2));
+        if (ImGui.Button("Add character"))
+        {
+            showModal = false;
+            var error = false;
+            if (newCharacter.IsNullOrWhitespace() || !newCharacter.IsValidCharacterName() || newCharacter.Equals("Other Players", StringComparison.Ordinal))
+            {
+                CreateNotification("Invalid Character name", "Invalid entry", NotificationType.Error);
+                log.Warning("Filter character name: {a}", newCharacter);
+                error = true;
+            }
+            if (currentTab is Tab.Summoner && petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
+            {
+                CreateNotification("Invalid Pet selected", "Invalid entry", NotificationType.Error);
+                error = true;
+            }
+            if (currentTab is Tab.Others && otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
+            {
+                CreateNotification("Invalid Pet selected", "Invalid entry", NotificationType.Error);
+                error = true;
+            }
+            if (world.Equals(DefaultWorldSelection, StringComparison.Ordinal))
+            {
+                CreateNotification("Invalid World selected", "Invalid entry", NotificationType.Error);
+                error = true;
+            }
+            if (!error)
+            {
+                if (currentTab is Tab.Summoner)
+                {
+                    CheckPossibleEntry(newCharacter);
+                }
+                if (currentTab is Tab.Others)
+                {
+                    CheckOtherPossibleEntry(newCharacter);
+                }
+                return true;
+            }
+        }
+        return false;
+    }
 
     public void Dispose()
     {
@@ -702,4 +805,12 @@ public sealed class ConfigWindow : Window, IDisposable
         cts.Cancel();
         cts.Dispose();
     }
+}
+
+#pragma warning disable MA0048 // File name must match type name
+public enum Tab
+{
+    None,
+    Summoner,
+    Others,
 }

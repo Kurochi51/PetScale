@@ -19,6 +19,7 @@ using PetScale.Structs;
 using PetScale.Helpers;
 using PetScale.Windows;
 using PetScale.Enums;
+using FFXIVClientStructs.FFXIV.Common.Math;
 
 namespace PetScale;
 
@@ -42,8 +43,9 @@ public sealed class PetScale : IDalamudPlugin
     private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new(StringComparer.OrdinalIgnoreCase);
     private readonly Stopwatch stopwatch = new();
     private readonly double dictionaryExpirationTime = TimeSpan.FromMilliseconds(500).TotalMilliseconds;
+    public static bool DrawAvailable { get; private set; }
 
-    private readonly Dictionary<PetRow, PetModel> petModelMap = new()
+    public static Dictionary<PetRow, PetModel> presetPetModelMap { get; } = new()
     {
         { PetRow.Bahamut,       PetModel.Bahamut        },
         { PetRow.Phoenix,       PetModel.Phoenix        },
@@ -53,24 +55,32 @@ public sealed class PetScale : IDalamudPlugin
         { PetRow.SolarBahamut,  PetModel.SolarBahamut   },
     };
 
-    private readonly Dictionary<PetRow, PetModel> otherPetModelMap = new()
+    public static Dictionary<PetRow, PetModel> customPetModelMap { get; } = new()
     {
-        { PetRow.Eos,               PetModel.Eos            },
-        { PetRow.Selene,            PetModel.Selene         },
-        { PetRow.Seraph,            PetModel.Seraph         },
-        { PetRow.Rook,              PetModel.Rook           },
-        { PetRow.AutomatonQueen,    PetModel.AutomatonQueen },
-        { PetRow.Esteem,            PetModel.Esteem         },
+        { PetRow.Eos,               PetModel.Eos                },
+        { PetRow.Selene,            PetModel.Selene             },
+        { PetRow.Seraph,            PetModel.Seraph             },
+        { PetRow.Rook,              PetModel.Rook               },
+        { PetRow.AutomatonQueen,    PetModel.AutomatonQueen     },
+        { PetRow.Esteem,            PetModel.Esteem             },
+
+        { PetRow.Carbuncle,         PetModel.Carbuncle          },
+        { PetRow.RubyCarbuncle,     PetModel.RubyCarbuncle      },
+        { PetRow.TopazCarbuncle,    PetModel.TopazCarbuncle     },
+        { PetRow.EmeraldCarbuncle,  PetModel.EmeraldCarbuncle   },
+        { PetRow.IfritEgi,          PetModel.IfritEgi           },
+        { PetRow.TitanEgi,          PetModel.TitanEgi           },
+        { PetRow.GarudaEgi,         PetModel.GarudaEgi          },
     };
 
-    public WindowSystem WindowSystem { get; } = new("PetScale");
-    public Queue<(string Name, ulong ContentId)> players { get; } = new();
+    public static WindowSystem WindowSystem { get; } = new("PetScale");
+    public Queue<(string Name, ulong ContentId, ushort HomeWorld)> players { get; } = new();
     public bool requestedCache { get; set; } = true;
     public int lastIndexOfOthers { get; set; } = -1;
     private ConfigWindow ConfigWindow { get; init; }
 #if DEBUG
     private DevWindow DevWindow { get; init; }
-    private readonly Dictionary<string, (PetModel?, int)> petModelDic = [];
+    private readonly Dictionary<string, (PetModel?, int, Vector3 scale)> petModelDic = [];
     private readonly IObjectTable objectTable;
 #endif
 
@@ -94,7 +104,7 @@ public sealed class PetScale : IDalamudPlugin
         config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         utilities = new Utilities(_dataManger, log, clientState.ClientLanguage);
 
-        ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager);
+        ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager, utilities);
 #if DEBUG
         objectTable = _objectTable;
         DevWindow = new DevWindow(log, pluginInterface);
@@ -109,7 +119,7 @@ public sealed class PetScale : IDalamudPlugin
             HelpMessage = "Open or close Pet Scale's config window.",
         });
 
-        pluginInterface.UiBuilder.Draw += WindowSystem.Draw;
+        pluginInterface.UiBuilder.Draw += UiDraw;
         pluginInterface.UiBuilder.OpenConfigUi += ConfigWindow.Toggle;
         clientState.TerritoryChanged += TerritoryChanged;
         clientState.Login += SetStopwatch;
@@ -148,11 +158,11 @@ public sealed class PetScale : IDalamudPlugin
         foreach (var entry in config.PetData.DistinctBy(item => item.CharacterName))
         {
             var world = string.Empty;
-            if (config.HomeWorld is not 0 && config.HomeWorld != entry.HomeWorld && !utilities.GetHomeWorldName(entry.HomeWorld).IsNullOrWhitespace())
+            if (config.HomeWorld is not 0 && entry.HomeWorld is not 1 && config.HomeWorld != entry.HomeWorld && !utilities.GetHomeWorldName(entry.HomeWorld).IsNullOrWhitespace())
             {
                 world = "@" + utilities.GetHomeWorldName(entry.HomeWorld);
             }
-            players.Enqueue((entry.CharacterName + world, entry.ContentId));
+            players.Enqueue((entry.CharacterName + world, entry.ContentId, entry.HomeWorld));
         }
     }
 
@@ -163,7 +173,7 @@ public sealed class PetScale : IDalamudPlugin
         {
             return;
         }
-        ConfigWindow.petMap.Add(nameof(PetModel.AllPets), PetModel.AllPets);
+        ConfigWindow.presetPetMap.Add(nameof(PetModel.AllPets), PetModel.AllPets);
         foreach (var pet in petSheet)
         {
             if (!Enum.IsDefined((PetRow)pet.RowId))
@@ -175,14 +185,29 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            if (petModelMap.ContainsKey((PetRow)pet.RowId))
+            if (presetPetModelMap.ContainsKey((PetRow)pet.RowId))
             {
                 petSizeMap.Add(pet.Name, scales);
-                ConfigWindow.petMap.Add(pet.Name, petModelMap[(PetRow)pet.RowId]);
+                ConfigWindow.presetPetMap.Add(pet.Name, presetPetModelMap[(PetRow)pet.RowId]);
             }
         }
         // List of pet rows sorted by SCH pets, MCH pets, DRK pet then in ascending order
-        List<uint> sortedRows = [6, 7, 15, 8, 18, 17];
+        List<uint> sortedRows = 
+        [
+            (uint)PetRow.Eos, 
+            (uint)PetRow.Selene,
+            (uint)PetRow.Seraph,
+            (uint)PetRow.Rook,
+            (uint)PetRow.AutomatonQueen,
+            (uint)PetRow.Esteem,
+            (uint)PetRow.Carbuncle,
+            (uint)PetRow.RubyCarbuncle,
+            (uint)PetRow.TopazCarbuncle,
+            (uint)PetRow.EmeraldCarbuncle,
+            (uint)PetRow.IfritEgi,
+            (uint)PetRow.TitanEgi,
+            (uint)PetRow.GarudaEgi,
+        ];
         foreach (var row in sortedRows)
         {
             var currentRow = petSheet.GetRow(row);
@@ -190,13 +215,13 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            if (!Enum.IsDefined((PetRow)currentRow.RowId) || !otherPetModelMap.ContainsKey((PetRow)currentRow.RowId))
+            if (!Enum.IsDefined((PetRow)currentRow.RowId) || !customPetModelMap.ContainsKey((PetRow)currentRow.RowId))
             {
                 continue;
             }
-            if (currentRow.NonCombatSummon || currentRow.Unknown15)
+            if (currentRow.NonCombatSummon || currentRow.Unknown15 || sortedRows.Contains(currentRow.RowId))
             {
-                ConfigWindow.otherPetMap.Add(currentRow.Name, otherPetModelMap[(PetRow)currentRow.RowId]);
+                ConfigWindow.customPetMap.Add(currentRow.Name, customPetModelMap[(PetRow)currentRow.RowId]);
             }
         }
         foreach (var entry in petSizeMap)
@@ -223,7 +248,7 @@ public sealed class PetScale : IDalamudPlugin
             if (requestedCache)
             {
                 playerName ??= player.Name.TextValue;
-                RefreshCache(playerName, clientState.LocalContentId, player.EntityId);
+                RefreshCache(playerName, clientState.LocalContentId, player.EntityId, config.HomeWorld);
                 requestedCache = false;
             }
         }
@@ -259,7 +284,7 @@ public sealed class PetScale : IDalamudPlugin
             if (!petModelDic.ContainsKey(petName))
             {
                 PetModel? petModel = Enum.IsDefined(typeof(PetModel), chara.Value->Character.CharacterData.ModelCharaId) ? (PetModel)chara.Value->Character.CharacterData.ModelCharaId : null;
-                petModelDic.Add(petName, (petModel, chara.Value->Character.CharacterData.ModelCharaId));
+                petModelDic.Add(petName, (petModel, chara.Value->Character.CharacterData.ModelCharaId, Vector3.Zero));
             }
 #endif
             if (!Enum.IsDefined(typeof(PetModel), chara.Value->Character.CharacterData.ModelCharaId))
@@ -267,7 +292,7 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
 #if DEBUG
-            DevWindow.AddObjects(objectTable.CreateObjectReference((nint)(&chara.Value->Character)));
+            //DevWindow.AddObjects(objectTable.CreateObjectReference((nint)(&chara.Value->Character)));
 #endif
             activePetDictionary.Add(chara.Value, (null, false));
         }
@@ -312,7 +337,35 @@ public sealed class PetScale : IDalamudPlugin
             }
 #if DEBUG
             DevWindow.Print(pet->NameString + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + character->NameString + " size " + pet->Character.GameObject.Scale);
+            var drawModel = pet->Character.GetDrawObject();
+            if (drawModel is not null && petModelDic.TryGetValue(pet->NameString, out var current))
+            {
+                current.scale = drawModel->Scale;
+                petModelDic[pet->NameString] = current;
+            }
 #endif
+            if (config.FairyState is not PetState.Off && (PetModel)pet->Character.CharacterData.ModelCharaId is PetModel.Eos or PetModel.Selene)
+            {
+                switch (config.FairyState)
+                {
+                    case PetState.Self when character->GameObject.EntityId == playerEntityId:
+                    case PetState.Others when character->GameObject.EntityId != playerEntityId:
+                    case PetState.All:
+                        {
+                            utilities.SetScale(pet, 1.5f);
+                            activePetDictionary[pair.Key] = (pair.Value.character, true);
+                            if (config.PetData.Any(
+                                item => (item.ContentId == character->ContentId || item.CharacterName.Equals(character->NameString, ordinalComparison))
+                                && item.PetID == (PetModel)pet->Character.CharacterData.ModelCharaId))
+                            {
+                                break;
+                            }
+                            continue;
+                        }
+                    default:
+                        break;
+                }
+            }
             if (ParseStruct(pet, character, pet->Character.CharacterData.ModelCharaId, character->GameObject.EntityId == playerEntityId))
             {
                 activePetDictionary[pair.Key] = (pair.Value.character, true);
@@ -356,12 +409,14 @@ public sealed class PetScale : IDalamudPlugin
             if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
                 && userData.PetID is PetModel.AllPets)
             {
-                petSet = SetScale(pet, userData, petName);
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
             // Specific Pet for General Character
-            if (userData.Generic && userData.PetID == modelType)
+            if (userData.PetID == modelType)
             {
-                petSet = SetScale(pet, userData, petName);
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
         }
         for (var i = index + 1; i < config.PetData.Count; i++)
@@ -371,20 +426,21 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            userData.ContentId = character->ContentId;
-            userData.HomeWorld = character->HomeWorld;
+            userData.UpdateData(character->HomeWorld, character->ContentId);
             config.PetData[i] = userData;
             savePending = true;
             // General Pet for Specific Character
             if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
                 && userData.PetID is PetModel.AllPets)
             {
-                petSet = SetScale(pet, userData, petName);
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
             // Specific Pet for Specific Character
-            if (userData.CharacterName.Equals(character->NameString, ordinalComparison) && userData.PetID == modelType)
+            if (userData.PetID == modelType)
             {
-                petSet = SetScale(pet, userData, petName);
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
         }
         return petSet;
@@ -398,19 +454,21 @@ public sealed class PetScale : IDalamudPlugin
         for (var i = 0; i <= index; i++)
         {
             var userData = config.PetData[i];
-            if (isLocalPlayer || !userData.Generic)
+            if (isLocalPlayer)
             {
                 continue;
             }
             // General Pet for General Character
-            if (allPets.Exists(item => item.ContentId == userData.ContentId) && userData.PetID is PetModel.AllPets)
+            if (userData.PetID is PetModel.AllPets && allPets.Exists(item => item.ContentId == userData.ContentId))
             {
-                petSet = SetScale(pet, userData, petName);
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
             // Specific Pet for General Character
             if (userData.PetID == modelType)
             {
-                petSet = SetScale(pet, userData, petName);
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
         }
         for (var i = index + 1; i < config.PetData.Count; i++)
@@ -421,30 +479,41 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             // General Pet for Specific Character
-            if (allPets.Exists(item => item.ContentId == userData.ContentId) && userData.PetID is PetModel.AllPets && userData.Generic)
+            if (userData.PetID is PetModel.AllPets && allPets.Exists(item => item.ContentId == userData.ContentId))
             {
-                petSet = SetScale(pet, userData, petName);
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
             // Specific Pet for Specific Character
             if (userData.PetID == modelType)
             {
-                petSet = SetScale(pet, userData, petName);
+                SetScale(pet, userData, petName);
+                petSet = true;
             }
         }
         return petSet;
     }
 
-    private unsafe void RefreshCache(string playerName, ulong contentId, uint entityId)
+    private unsafe void RefreshCache(string playerName, ulong contentId, uint entityId, ushort homeWorld)
     {
         players.Clear();
-        players.Enqueue((playerName, contentId));
-        players.Enqueue((Others, OthersContendId));
+        players.Enqueue((playerName, contentId, homeWorld));
+        players.Enqueue((Others, OthersContendId, OthersHomeWorld));
         utilities.CachePlayerList(entityId, config.HomeWorld, players, BattleCharaSpan);
     }
 
-    private unsafe bool SetScale(BattleChara* pet, in PetStruct userData, string petName)
+    private unsafe void SetScale(BattleChara* pet, in PetStruct userData, string petName)
     {
-        if (petModelMap.ContainsValue(userData.PetID))
+        /*var scale = userData.PetSize switch
+        {
+            PetSize.SmallModelScale => petSizeMap[petName].smallScale,
+            PetSize.MediumModelScale => petSizeMap[petName].mediumScale,
+            PetSize.LargeModelScale => petSizeMap[petName].largeScale,
+            PetSize.Custom => Math.Max(userData.AltPetSize, Utilities.GetMinSize(userData.PetID)),
+            _ => throw new ArgumentException("Invalid PetSize", paramName: userData.PetSize.ToString()),
+        };
+        utilities.SetScale(pet, scale);*/
+        if (presetPetModelMap.ContainsValue(userData.PetID))
         {
             var scale = userData.PetSize switch
             {
@@ -454,18 +523,13 @@ public sealed class PetScale : IDalamudPlugin
                 _ => throw new ArgumentException("Invalid PetSize", paramName: userData.PetSize.ToString()),
             };
             utilities.SetScale(pet, scale);
-            return true;
+            return;
         }
-        if (otherPetModelMap.ContainsValue(userData.PetID))
+        if (customPetModelMap.ContainsValue(userData.PetID) && userData.PetSize is PetSize.Custom)
         {
-            if (userData.PetSize is not PetSize.Custom)
-            {
-                return false;
-            }
             var scale = Math.Max(userData.AltPetSize, Utilities.GetMinSize(userData.PetID));
             utilities.SetScale(pet, scale);
         }
-        return true;
     }
 
 #if DEBUG
@@ -476,10 +540,17 @@ public sealed class PetScale : IDalamudPlugin
         foreach (var entry in petModelDic)
         {
             var petModel = entry.Value.Item1 is not null ? "True - " + entry.Value.Item1.ToString() : "False";
-            DevWindow.Print($"Pet: {entry.Key} - ModelCharaId: {entry.Value.Item2} - IsPetModel: {petModel}");
+            DevWindow.Print($"Pet: {entry.Key} - ModelCharaId: {entry.Value.Item2} - Scale: {entry.Value.scale} - IsPetModel: {petModel}");
         }
     }
 #endif
+
+    private static void UiDraw()
+    {
+        DrawAvailable = true;
+        WindowSystem.Draw();
+        DrawAvailable = false;
+    }
 
     private void OnCommand(string command, string args)
     {
@@ -496,7 +567,7 @@ public sealed class PetScale : IDalamudPlugin
         clientState.Logout -= SetStopwatch;
         clientState.TerritoryChanged -= TerritoryChanged;
         pluginInterface.UiBuilder.OpenConfigUi -= ConfigWindow.Toggle;
-        pluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
+        pluginInterface.UiBuilder.Draw -= UiDraw;
 
         ConfigWindow.Dispose();
         WindowSystem.RemoveAllWindows();

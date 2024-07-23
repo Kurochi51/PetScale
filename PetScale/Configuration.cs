@@ -13,7 +13,7 @@ public class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 0;
     public IList<PetStruct> PetData { get; set; } = [];
-    public int FairySize { get; set; } = 0;
+    public PetState FairyState { get; set; } = PetState.Off;
     public ushort HomeWorld { get; set; } = 0;
     public bool UpdateNeeded { get; internal set; }
 

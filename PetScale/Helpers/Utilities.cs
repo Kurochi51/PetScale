@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 
 using Lumina.Excel;
@@ -20,6 +21,14 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
     private readonly IPluginLog log = _pluginLog;
     private readonly ClientLanguage language = _language;
     private ExcelSheet<World>? worldSheet = null;
+    private ExcelSheet<World>? WorldSheet
+    {
+        get
+        {
+            worldSheet??= GetSheet<World>(language);
+            return worldSheet;
+        }
+    }
 
     /// <summary>
     ///     Attempt to retrieve an <see cref="ExcelSheet{T}"/>, optionally in a specific <paramref name="language"/>.
@@ -59,6 +68,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             drawObject->Object.Scale.Y = scale;
             drawObject->Object.Scale.Z = scale;
         }
+        //log.Debug("Set {a} to size {b}", pet->NameString, scale);
     }
 
     private static unsafe DrawState* ActorDrawState(IGameObject actor)
@@ -73,7 +83,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         *ActorDrawState(actor) ^= DrawState.Invisibility;
     }
 
-    public unsafe void CachePlayerList(uint playerEntityId, ushort homeWorld, Queue<(string, ulong)> queue, Span<Pointer<BattleChara>> CharacterSpan)
+    public unsafe void CachePlayerList(uint playerEntityId, ushort homeWorld, Queue<(string Name, ulong ContentId, ushort HomeWorld)> queue, Span<Pointer<BattleChara>> CharacterSpan)
     {
         foreach (var chara in CharacterSpan)
         {
@@ -92,7 +102,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     world = "@" + GetHomeWorldName(chara.Value->Character.HomeWorld);
                 }
-                queue.Enqueue((chara.Value->Character.NameString + world, chara.Value->ContentId));
+                queue.Enqueue((chara.Value->Character.NameString + world, chara.Value->ContentId, chara.Value->HomeWorld));
             }
         }
     }
@@ -116,14 +126,51 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         };
     }
 
+    public ushort GetHomeWorldId(string name)
+    {
+        ushort id = 0;
+        if (WorldSheet is null)
+        {
+            return id;
+        }
+        foreach (var world in WorldSheet.Where(item => item.IsPublic))
+        {
+            if (!world.Name.ToDalamudString().TextValue.Equals(name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            id = (ushort)world.RowId;
+            break;
+        }
+        return id;
+    }
+
     public string GetHomeWorldName(ushort id)
     {
-        worldSheet ??= GetSheet<World>(language);
-        if (worldSheet is not null)
+        if (WorldSheet is null)
         {
-            var world = worldSheet.GetRow(id);
-            return world?.Name ?? string.Empty;
+            return string.Empty;
         }
-        return string.Empty;
+        return WorldSheet.GetRow(id)?.Name ?? string.Empty;
+    }
+
+    public void InitWorldMap(IDictionary<string, string> worldDictionary)
+    {
+        if (WorldSheet is null)
+        {
+            return;
+        }
+        foreach (var currentWorld in WorldSheet)
+        {
+            if (!currentWorld.IsPublic)
+            {
+                continue;
+            }
+            if (currentWorld.Name.ToDalamudString().TextValue.Contains("test", StringComparison.Ordinal))
+            {
+                continue;
+            }
+            worldDictionary.Add(currentWorld.Name, currentWorld.DataCenter.Value!.Name.ToDalamudString().TextValue);
+        }
     }
 }

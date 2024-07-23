@@ -21,6 +21,14 @@ public enum PetRow : uint
     AutomatonQueen = 18,
     // DRK Emo Clone
     Esteem = 17,
+    // Custom SMN pets
+    Carbuncle = 23,
+    RubyCarbuncle = 24,
+    TopazCarbuncle = 25,
+    EmeraldCarbuncle = 26,
+    IfritEgi = 27,
+    TitanEgi = 28,
+    GarudaEgi = 29,
 }
 
 /// <summary>
@@ -44,6 +52,14 @@ public enum PetModel
     AutomatonQueen = 2618,
     // DRK Emo Clone
     Esteem = 2621,
+    // Custom SMN pets
+    Carbuncle = 411,
+    RubyCarbuncle = 410,
+    TopazCarbuncle = 412,
+    EmeraldCarbuncle = 409,
+    IfritEgi = 415,
+    TitanEgi = 416,
+    GarudaEgi = 417,
 }
 
 public enum PetSize
