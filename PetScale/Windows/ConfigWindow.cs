@@ -5,6 +5,7 @@ using System.Threading;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
 using ImGuiNET;
@@ -22,7 +23,6 @@ using FFXIVClientStructs.FFXIV.Client.Graphics.Kernel;
 using PetScale.Helpers;
 using PetScale.Structs;
 using PetScale.Enums;
-using System.Text;
 
 namespace PetScale.Windows;
 
@@ -34,7 +34,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly IPluginLog log;
     private readonly INotificationManager notificationManager;
     private readonly Utilities utilities;
-    private readonly Dictionary<string, string?> comboFilter = [];
+    private readonly Dictionary<string, string> comboFilter = [];
     private readonly Dictionary<PetSize, string> sizeMap = new()
     {
         { PetSize.SmallModelScale,   "Small" },
@@ -53,11 +53,12 @@ public sealed class ConfigWindow : Window, IDisposable
     public Dictionary<string, PetModel> customPetMap { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> worldMap { get; } = new(StringComparer.Ordinal);
     private Queue<(string Name, ulong ContentId, ushort HomeWorld)> players => plugin.players;
+    private ConcurrentDictionary<ulong, PetStruct> removedPlayers => plugin.removedPlayers;
     private IList<PetStruct> petData => config.PetData;
     private IFontHandle iconFont => pluginInterface.UiBuilder.IconFontFixedWidthHandle;
 
     private string petSelection = DefaultPetSelection, longestPetName = string.Empty, sizeSelection = DefaultSizeSelection, charaName = DefaultCharacterSelection;
-    private string filterTemp = string.Empty, otherPetSelection = DefaultPetSelection, world = DefaultWorldSelection;
+    private string otherPetSelection = DefaultPetSelection, world = DefaultWorldSelection;
     private float tableButtonAlignmentOffset, charaWidth, petWidth, sizesWidth, worldWidth, tempPetSize = 1f;
     private bool fontChange, showModal = false;
     private Tab currentTab;
@@ -118,13 +119,16 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             return;
         }
-        PresetTab();
-        CustomTab();
-        MiscTab();
+#if DEBUG
+        DevWindow.Print("Summon entries: " + petData.Count.ToString());
         foreach (var item in comboFilter)
         {
             DevWindow.Print("Filter stuff: " + item.Key + " - " + (item.Value ?? "null"));
         }
+#endif
+        PresetTab();
+        CustomTab();
+        MiscTab();
     }
 
     private void MiscTab()
@@ -165,13 +169,13 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SameLine();
         ImGui.SetNextItemWidth(sizesWidth);
         if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal)
-            && tempPetSize < Utilities.GetMinSize(customPetMap[otherPetSelection]))
+            && tempPetSize < Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom))
         {
-            tempPetSize = Utilities.GetMinSize(customPetMap[otherPetSelection]);
+            tempPetSize = Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom);
         }
         if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
         {
-            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, Utilities.GetMinSize(customPetMap[otherPetSelection]), 4f, "%.3g", ImGuiSliderFlags.AlwaysClamp);
+            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom), Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f), "%.3g", ImGuiSliderFlags.AlwaysClamp);
             if (ImGui.IsItemHovered())
             {
                 ImGui.SetTooltip("Pet Size");
@@ -220,9 +224,6 @@ public sealed class ConfigWindow : Window, IDisposable
             return;
         }
         currentTab = Tab.Summoner;
-#if DEBUG
-        DevWindow.Print("Summon entries: " + petData.Count.ToString());
-#endif
         ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
         DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true);
@@ -330,6 +331,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SetCursorPosX(tableButtonAlignmentOffset);
         if (ImGuiUtils.IconButton(iconFont, deleteButtonIcon, buttonId + deleteButtonIcon, 1))
         {
+            removedPlayers.TryAdd(petData[index].ContentId, petData[index]);
             petData.RemoveAt(index);
             CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + (customSize ? item.AltPetSize.ToString(CultureInfo.CurrentCulture) : sizeMap[item.PetSize]) + " was removed.", "Entry removed");
             itemRemoved = true;
@@ -337,7 +339,7 @@ public sealed class ConfigWindow : Window, IDisposable
     }
 
     // I don't like the way filters are managed, but I can't think of a better way
-    private void DrawComboBox<T>(string label, string current, float width, out string result, 
+    private void DrawComboBox<T>(string label, string current, float width, out string result,
         IReadOnlyCollection<T> list, bool filter, bool newEntryPossible = false) where T : notnull
     {
         ImGui.SetNextItemWidth(width);
@@ -360,34 +362,36 @@ public sealed class ConfigWindow : Window, IDisposable
         if (filter)
         {
             comboLabel += "_" + currentTab.ToString();
-            comboFilter.TryAdd(comboLabel, null);
-            if (comboFilter[comboLabel] is null)
-            {
-                comboFilter[comboLabel] = string.Empty;
-            }
+            comboFilter.TryAdd(comboLabel, string.Empty);
             ImGui.SetNextItemWidth(width);
             var filterStr = comboFilter[comboLabel];
             if (ImGui.InputTextWithHint("##Filter" + label, newEntryPossible ? "New Entry or Filter.." : "Filter..", ref filterStr, 21, ImGuiInputTextFlags.EnterReturnsTrue))
             {
                 comboFilter[comboLabel] = filterStr;
-                log.Debug("filter matches {a}", tempList.Count(item => item.Contains(comboFilter[comboLabel]!, StringComparison.OrdinalIgnoreCase)));
-                if (newEntryPossible && tempList.Count(item => item.Contains(comboFilter[comboLabel]!, StringComparison.OrdinalIgnoreCase)) is 0)
+                log.Debug("filter matches {a}", tempList.Count(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)));
+                if (newEntryPossible && tempList.Count(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)) is 0)
                 {
                     showModal = true;
-                    filterStr = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(comboFilter[comboLabel]!.ToLower(CultureInfo.CurrentCulture));
+                    filterStr = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(comboFilter[comboLabel].ToLower(CultureInfo.CurrentCulture));
                     ImGui.OpenPopup(WorldSelectModal);
                 }
             }
             comboFilter[comboLabel] = filterStr;
             if (newEntryPossible && ImGui.IsItemHovered())
             {
-                ImGui.SetTooltip("New entry can be made if your search doesn't return any returns in the list");
+                ImGui.SetTooltip("New entry can be made, by pressing enter, if your search doesn't return any returns in the list");
             }
-            if (PopupModal(WorldSelectModal, comboFilter[comboLabel]!))
+            var size = new Vector2(ImGui.CalcTextSize(comboFilter[comboLabel] + " - ").X + worldWidth + (ImGui.GetStyle().FramePadding.X * 2) + 25, 150f);
+            size.X = size.X >= ImGui.CalcTextSize("Add character").X + (ImGui.GetStyle().FramePadding.X * 2) + 25
+                ? size.X
+                : ImGui.CalcTextSize("Add character").X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
+            ImGui.SetNextWindowSize(size);
+            ImGuiUtils.CenterNextWindow(size);
+            if (PopupModal(WorldSelectModal, size, comboFilter[comboLabel]))
             {
                 comboFilter[comboLabel] = string.Empty;
             }
-            tempList = tempList.Where(item => item.Contains(comboFilter[comboLabel]!, StringComparison.OrdinalIgnoreCase)).ToList();
+            tempList = tempList.Where(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)).ToList();
         }
         var itemCount = tempList.Count;
         var height = ImGui.GetTextLineHeightWithSpacing() * Math.Min(itemCount + 1.5f, 8);
@@ -592,43 +596,44 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private void ResizeIfNeeded()
     {
-        if (fontChange || charaWidth is 0 || petWidth is 0 || sizesWidth is 0)
+        if (!fontChange && charaWidth is not 0 && petWidth is not 0 && sizesWidth is not 0 && worldWidth is not 0)
         {
-            var currentSize = ImGui.CalcTextSize(longestPetName).X;
-            foreach (var petName in presetPetMap.Select(pet => pet.Key))
-            {
-                var size = ImGui.CalcTextSize(petName).X;
-                if (size > currentSize)
-                {
-                    longestPetName = petName;
-                    currentSize = size;
-                }
-            }
-            foreach (var petName in customPetMap.Select(pet => pet.Key))
-            {
-                var size = ImGui.CalcTextSize(petName).X;
-                if (size > currentSize)
-                {
-                    longestPetName = petName;
-                    currentSize = size;
-                }
-            }
-            worldWidth = ImGui.CalcTextSize(LongestWorldName).X + (ImGui.GetStyle().FramePadding.X * 2);
-            charaWidth = ImGui.CalcTextSize(LongestCharaName).X + (ImGui.GetStyle().FramePadding.X * 2);
-            petWidth = ImGui.CalcTextSize(longestPetName).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
-            sizesWidth = ImGui.CalcTextSize(LongestSize).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
-            tableButtonAlignmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
-            if (SizeConstraints.HasValue)
-            {
-                var newWidth = tableButtonAlignmentOffset + ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
-                SizeConstraints = new WindowSizeConstraints()
-                {
-                    MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),
-                    MaximumSize = SizeConstraints.Value.MaximumSize,
-                };
-            }
-            fontChange = false;
+            return;
         }
+        var currentSize = ImGui.CalcTextSize(longestPetName).X;
+        foreach (var petName in presetPetMap.Select(pet => pet.Key))
+        {
+            var size = ImGui.CalcTextSize(petName).X;
+            if (size > currentSize)
+            {
+                longestPetName = petName;
+                currentSize = size;
+            }
+        }
+        foreach (var petName in customPetMap.Select(pet => pet.Key))
+        {
+            var size = ImGui.CalcTextSize(petName).X;
+            if (size > currentSize)
+            {
+                longestPetName = petName;
+                currentSize = size;
+            }
+        }
+        worldWidth = ImGui.CalcTextSize(LongestWorldName).X + (ImGui.GetStyle().FramePadding.X * 2);
+        charaWidth = ImGui.CalcTextSize(LongestCharaName).X + (ImGui.GetStyle().FramePadding.X * 2);
+        petWidth = ImGui.CalcTextSize(longestPetName).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
+        sizesWidth = ImGui.CalcTextSize(LongestSize).X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
+        tableButtonAlignmentOffset = charaWidth + petWidth + sizesWidth + (ImGui.GetStyle().ItemSpacing.X * 3);
+        if (SizeConstraints.HasValue)
+        {
+            var newWidth = tableButtonAlignmentOffset + ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).X + (ImGui.GetStyle().WindowPadding.X * 2) + ImGui.GetStyle().ScrollbarSize;
+            SizeConstraints = new WindowSizeConstraints()
+            {
+                MinimumSize = new Vector2(newWidth / ImGuiHelpers.GlobalScale, SizeConstraints.Value.MinimumSize.Y),
+                MaximumSize = SizeConstraints.Value.MaximumSize,
+            };
+        }
+        fontChange = false;
     }
 
     public void ProcessPetData(bool save)
@@ -737,16 +742,9 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private bool PopupModal(string label, string newCharacter)
+    private bool PopupModal(string label, Vector2 size, string newCharacter)
     {
-        var size = new Vector2(ImGui.CalcTextSize(newCharacter + " - ").X + worldWidth + (ImGui.GetStyle().FramePadding.X * 2) + 25, 150f);
-        var buttonSize = ImGui.CalcTextSize("Add character").X + (ImGui.GetStyle().FramePadding.X * 2) + 25;
-        if (size.X < buttonSize)
-        {
-            size.X = buttonSize;
-        }
-        ImGui.SetNextWindowSize(size);
-        using var modal = ImRaii.PopupModal(label, ref showModal, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoScrollbar);
+        using var modal = ImRaii.PopupModal(label, ref showModal, ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoSavedSettings);
         if (!modal || currentTab is Tab.None)
         {
             return false;
@@ -755,9 +753,8 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextUnformatted(newCharacter);
         ImGui.SameLine();
         DrawComboBox("World Selection", world, worldWidth, out world, worldMap.Keys, filter: true);
-        ImGui.SetCursorPosY(ImGui.GetContentRegionMax().Y - (ImGui.GetFrameHeight() / 2f) - (ImGui.CalcTextSize("Add character").Y / 2f)  - (3f * ImGuiHelpers.GlobalScale) + (ImGui.GetScrollY() * 2));
-        //ImGui.SetCursorPosY(ImGui.GetWindowContentRegionMax().Y - ImGui.GetFrameHeight() - (3f * ImGuiHelpers.GlobalScale) + (ImGui.GetScrollY() * 2));
-        ImGui.SetCursorPosX((ImGui.GetContentRegionMax().X / 2 ) - (ImGuiHelpers.GetButtonSize("Add character").X / 2));
+        ImGui.SetCursorPosY(ImGui.GetContentRegionMax().Y - (ImGui.GetFrameHeight() / 2f) - (ImGui.CalcTextSize("Add character").Y / 2f) - (3f * ImGuiHelpers.GlobalScale) + (ImGui.GetScrollY() * 2));
+        ImGui.SetCursorPosX((ImGui.GetContentRegionMax().X / 2) - (ImGuiHelpers.GetButtonSize("Add character").X / 2));
         if (ImGui.Button("Add character"))
         {
             showModal = false;
@@ -765,7 +762,6 @@ public sealed class ConfigWindow : Window, IDisposable
             if (newCharacter.IsNullOrWhitespace() || !newCharacter.IsValidCharacterName() || newCharacter.Equals("Other Players", StringComparison.Ordinal))
             {
                 CreateNotification("Invalid Character name", "Invalid entry", NotificationType.Error);
-                log.Warning("Filter character name: {a}", newCharacter);
                 error = true;
             }
             if (currentTab is Tab.Summoner && petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
@@ -782,6 +778,7 @@ public sealed class ConfigWindow : Window, IDisposable
             {
                 CreateNotification("Invalid World selected", "Invalid entry", NotificationType.Error);
                 error = true;
+                showModal = true;
             }
             if (!error)
             {

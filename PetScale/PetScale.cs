@@ -3,6 +3,7 @@ using System.Linq;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 using Dalamud.Plugin;
 using Dalamud.Utility;
@@ -14,12 +15,12 @@ using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using FFXIVClientStructs.FFXIV.Common.Math;
 using FFXIVClientStructs.Interop;
 using PetScale.Structs;
 using PetScale.Helpers;
 using PetScale.Windows;
 using PetScale.Enums;
-using FFXIVClientStructs.FFXIV.Common.Math;
 
 namespace PetScale;
 
@@ -75,12 +76,13 @@ public sealed class PetScale : IDalamudPlugin
 
     public static WindowSystem WindowSystem { get; } = new("PetScale");
     public Queue<(string Name, ulong ContentId, ushort HomeWorld)> players { get; } = new();
+    public ConcurrentDictionary<ulong, PetStruct> removedPlayers { get; } = new();
     public bool requestedCache { get; set; } = true;
     public int lastIndexOfOthers { get; set; } = -1;
     private ConfigWindow ConfigWindow { get; init; }
 #if DEBUG
     private DevWindow DevWindow { get; init; }
-    private readonly Dictionary<string, (PetModel?, int, Vector3 scale)> petModelDic = [];
+    private readonly Dictionary<string, (PetModel?, int, Vector3 scale, Vector3 scale2)> petModelDic = [];
     private readonly IObjectTable objectTable;
 #endif
 
@@ -192,9 +194,9 @@ public sealed class PetScale : IDalamudPlugin
             }
         }
         // List of pet rows sorted by SCH pets, MCH pets, DRK pet then in ascending order
-        List<uint> sortedRows = 
+        List<uint> sortedRows =
         [
-            (uint)PetRow.Eos, 
+            (uint)PetRow.Eos,
             (uint)PetRow.Selene,
             (uint)PetRow.Seraph,
             (uint)PetRow.Rook,
@@ -215,14 +217,11 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            if (!Enum.IsDefined((PetRow)currentRow.RowId) || !customPetModelMap.ContainsKey((PetRow)currentRow.RowId))
+            if (!Enum.IsDefined((PetRow)currentRow.RowId) || !sortedRows.Contains(currentRow.RowId))
             {
                 continue;
             }
-            if (currentRow.NonCombatSummon || currentRow.Unknown15 || sortedRows.Contains(currentRow.RowId))
-            {
-                ConfigWindow.customPetMap.Add(currentRow.Name, customPetModelMap[(PetRow)currentRow.RowId]);
-            }
+            ConfigWindow.customPetMap.Add(currentRow.Name, customPetModelMap[(PetRow)currentRow.RowId]);
         }
         foreach (var entry in petSizeMap)
         {
@@ -284,7 +283,7 @@ public sealed class PetScale : IDalamudPlugin
             if (!petModelDic.ContainsKey(petName))
             {
                 PetModel? petModel = Enum.IsDefined(typeof(PetModel), chara.Value->Character.CharacterData.ModelCharaId) ? (PetModel)chara.Value->Character.CharacterData.ModelCharaId : null;
-                petModelDic.Add(petName, (petModel, chara.Value->Character.CharacterData.ModelCharaId, Vector3.Zero));
+                petModelDic.Add(petName, (petModel, chara.Value->Character.CharacterData.ModelCharaId, Vector3.Zero, Vector3.Zero));
             }
 #endif
             if (!Enum.IsDefined(typeof(PetModel), chara.Value->Character.CharacterData.ModelCharaId))
@@ -316,6 +315,7 @@ public sealed class PetScale : IDalamudPlugin
     {
         foreach (var pair in activePetDictionary)
         {
+            utilities.CheckPetRemoval(pair.Key.Value, pair.Value.character.Value, removedPlayers);
             if (pair.Value.petSet)
             {
                 continue;
@@ -336,11 +336,12 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
 #if DEBUG
-            DevWindow.Print(pet->NameString + ": " + pet->Character.CharacterData.ModelCharaId + " owned by " + character->NameString + " size " + pet->Character.GameObject.Scale);
+            DevWindow.Print(pet->NameString + ": " + pet->ModelCharaId + " owned by " + character->NameString + " size " + pet->Scale);
             var drawModel = pet->Character.GetDrawObject();
             if (drawModel is not null && petModelDic.TryGetValue(pet->NameString, out var current))
             {
                 current.scale = drawModel->Scale;
+                current.scale2 = new Vector3(pet->Character.Scale, pet->Character.ModelScale, pet->Character.VfxScale);
                 petModelDic[pet->NameString] = current;
             }
 #endif
@@ -351,17 +352,19 @@ public sealed class PetScale : IDalamudPlugin
                     case PetState.Self when character->GameObject.EntityId == playerEntityId:
                     case PetState.Others when character->GameObject.EntityId != playerEntityId:
                     case PetState.All:
+                    {
+                        utilities.SetScale(pet, 1.5f);
+                        activePetDictionary[pair.Key] = (pair.Value.character, true);
+                        if (config.PetData.Any(
+                            item => item.PetID == (PetModel)pet->Character.CharacterData.ModelCharaId &&
+                                (item.ContentId == character->ContentId
+                                || (item.HomeWorld is not 0 && item.HomeWorld == character->HomeWorld && item.CharacterName.Equals(character->NameString, ordinalComparison))
+                                || (item.HomeWorld is 0 && item.CharacterName.Equals(character->NameString, ordinalComparison)))))
                         {
-                            utilities.SetScale(pet, 1.5f);
-                            activePetDictionary[pair.Key] = (pair.Value.character, true);
-                            if (config.PetData.Any(
-                                item => (item.ContentId == character->ContentId || item.CharacterName.Equals(character->NameString, ordinalComparison))
-                                && item.PetID == (PetModel)pet->Character.CharacterData.ModelCharaId))
-                            {
-                                break;
-                            }
-                            continue;
+                            break;
                         }
+                        continue;
+                    }
                     default:
                         break;
                 }
@@ -371,6 +374,7 @@ public sealed class PetScale : IDalamudPlugin
                 activePetDictionary[pair.Key] = (pair.Value.character, true);
             }
         }
+        removedPlayers.Clear();
     }
 
     private unsafe bool ParseStruct(BattleChara* pet, Character* character, int modelId, bool isLocalPlayer)
@@ -504,15 +508,6 @@ public sealed class PetScale : IDalamudPlugin
 
     private unsafe void SetScale(BattleChara* pet, in PetStruct userData, string petName)
     {
-        /*var scale = userData.PetSize switch
-        {
-            PetSize.SmallModelScale => petSizeMap[petName].smallScale,
-            PetSize.MediumModelScale => petSizeMap[petName].mediumScale,
-            PetSize.LargeModelScale => petSizeMap[petName].largeScale,
-            PetSize.Custom => Math.Max(userData.AltPetSize, Utilities.GetMinSize(userData.PetID)),
-            _ => throw new ArgumentException("Invalid PetSize", paramName: userData.PetSize.ToString()),
-        };
-        utilities.SetScale(pet, scale);*/
         if (presetPetModelMap.ContainsValue(userData.PetID))
         {
             var scale = userData.PetSize switch
@@ -525,9 +520,13 @@ public sealed class PetScale : IDalamudPlugin
             utilities.SetScale(pet, scale);
             return;
         }
+        if (clientState.IsPvPExcludingDen)
+        {
+            return;
+        }
         if (customPetModelMap.ContainsValue(userData.PetID) && userData.PetSize is PetSize.Custom)
         {
-            var scale = Math.Max(userData.AltPetSize, Utilities.GetMinSize(userData.PetID));
+            var scale = Math.Max(userData.AltPetSize, Utilities.GetDefaultScale(userData.PetID, userData.PetSize));
             utilities.SetScale(pet, scale);
         }
     }
@@ -540,7 +539,7 @@ public sealed class PetScale : IDalamudPlugin
         foreach (var entry in petModelDic)
         {
             var petModel = entry.Value.Item1 is not null ? "True - " + entry.Value.Item1.ToString() : "False";
-            DevWindow.Print($"Pet: {entry.Key} - ModelCharaId: {entry.Value.Item2} - Scale: {entry.Value.scale} - IsPetModel: {petModel}");
+            DevWindow.Print($"Pet: {entry.Key} - ModelCharaId: {entry.Value.Item2} - Scale: {entry.Value.scale} / {entry.Value.scale2} - IsPetModel: {petModel}");
         }
     }
 #endif

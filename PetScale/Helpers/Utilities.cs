@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets2;
@@ -11,6 +12,7 @@ using Dalamud.Game.ClientState.Objects.Types;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.Interop;
+using PetScale.Structs;
 using PetScale.Enums;
 
 namespace PetScale.Helpers;
@@ -25,7 +27,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
     {
         get
         {
-            worldSheet??= GetSheet<World>(language);
+            worldSheet ??= GetSheet<World>(language);
             return worldSheet;
         }
     }
@@ -53,22 +55,25 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         }
     }
 
-    public unsafe void SetScale(BattleChara* pet, float scale)
+    public unsafe void SetScale(BattleChara* pet, float scale, float? vfxScale = null)
     {
         if (pet is null)
         {
             return;
         }
-        pet->Character.GameObject.Scale = scale;
-        pet->Character.CharacterData.ModelScale = scale;
+        if (vfxScale.HasValue)
+        {
+            pet->VfxScale = vfxScale.Value;
+        }
+        pet->Scale = scale;
+        pet->ModelScale = scale;
         var drawObject = pet->Character.GameObject.GetDrawObject();
         if (drawObject is not null)
         {
-            drawObject->Object.Scale.X = scale;
-            drawObject->Object.Scale.Y = scale;
-            drawObject->Object.Scale.Z = scale;
+            drawObject->Scale.X = scale;
+            drawObject->Scale.Y = scale;
+            drawObject->Scale.Z = scale;
         }
-        //log.Debug("Set {a} to size {b}", pet->NameString, scale);
     }
 
     private static unsafe DrawState* ActorDrawState(IGameObject actor)
@@ -116,16 +121,6 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         return pet->Character.GameObject.GetDrawObject()->IsVisible;
     }
 
-    public static float GetMinSize(PetModel pet)
-    {
-        return pet switch
-        {
-            PetModel.Seraph => 1.25f,
-            PetModel.AutomatonQueen => 1.3f,
-            _ => 1f,
-        };
-    }
-
     public ushort GetHomeWorldId(string name)
     {
         ushort id = 0;
@@ -171,6 +166,157 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 continue;
             }
             worldDictionary.Add(currentWorld.Name, currentWorld.DataCenter.Value!.Name.ToDalamudString().TextValue);
+        }
+    }
+
+    /// <summary>
+    /// Returns a default scale for vfx, preset size, or custom size.
+    /// </summary>
+    /// <remarks>
+    /// When the provided <paramref name="size"/> is <see cref="PetSize.Custom"/> and the <paramref name="pet"/>
+    /// is one of the SMN pets that use "/petsize", the returned value will correspond to <see cref="PetSize.SmallModelScale"/>.
+    /// </remarks>
+    /// <exception cref="ArgumentException"> <see cref="PetModel.AllPets"/> is not an accepted value. </exception>
+    public static float GetDefaultScale(PetModel pet, PetSize size, bool vfx = false)
+    {
+        if (vfx)
+        {
+            return GetVfxDefault(pet);
+        }
+        if (size is not PetSize.Custom)
+        {
+            return GetPresetSize(pet, size);
+        }
+        return pet switch
+        {
+            PetModel.Eos
+            or PetModel.Selene
+            or PetModel.Carbuncle
+            or PetModel.Esteem
+            or PetModel.RubyCarbuncle
+            or PetModel.TopazCarbuncle
+            or PetModel.EmeraldCarbuncle
+            or PetModel.Rook
+            => 1f,
+            PetModel.GarudaEgi
+            or PetModel.IfritEgi
+            => 0.4f,
+            PetModel.TitanEgi => 0.35f,
+            PetModel.Seraph => 1.25f,
+            PetModel.AutomatonQueen => 1.3f,
+            PetModel.SolarBahamut => 0.13f,
+            PetModel.Bahamut => 0.1f,
+            PetModel.Ifrit => 0.25f,
+            PetModel.Phoenix
+            or PetModel.Titan
+            or PetModel.Garuda
+            => 0.33f,
+            _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+        };
+    }
+
+    private static float GetVfxDefault(PetModel pet)
+    {
+        return pet switch
+        {
+            PetModel.Eos
+            or PetModel.Selene
+            or PetModel.Seraph
+            or PetModel.AutomatonQueen
+            or PetModel.Esteem
+            or PetModel.IfritEgi
+            or PetModel.TitanEgi
+            or PetModel.GarudaEgi
+            or PetModel.SolarBahamut
+            or PetModel.Phoenix
+            or PetModel.Garuda
+            => 1f,
+            PetModel.Carbuncle
+            or PetModel.RubyCarbuncle
+            or PetModel.TopazCarbuncle
+            or PetModel.EmeraldCarbuncle
+            => 0.4f,
+            PetModel.Rook => 0.6f,
+            PetModel.Ifrit => 4f,
+            PetModel.Titan => 4f,
+            PetModel.Bahamut => 8f,
+            _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+        };
+    }
+
+    private static float GetPresetSize(PetModel pet, PetSize size)
+    {
+        switch (size)
+        {
+            case PetSize.SmallModelScale:
+                {
+                    return pet switch
+                    {
+                        PetModel.SolarBahamut => 0.13f,
+                        PetModel.Bahamut => 0.1f,
+                        PetModel.Ifrit => 0.25f,
+                        PetModel.Phoenix
+                        or PetModel.Titan
+                        or PetModel.Garuda
+                        => 0.33f,
+                        _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                    };
+                }
+            case PetSize.MediumModelScale:
+                {
+                    return pet switch
+                    {
+                        PetModel.SolarBahamut => 0.26f,
+                        PetModel.Bahamut => 0.2f,
+                        PetModel.Ifrit => 0.5f,
+                        PetModel.Phoenix
+                        or PetModel.Titan
+                        or PetModel.Garuda
+                        => 0.66f,
+                        _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                    };
+                }
+            case PetSize.LargeModelScale:
+                {
+                    return pet switch
+                    {
+                        PetModel.SolarBahamut => 0.4f,
+                        PetModel.Bahamut => 0.3f,
+                        PetModel.Ifrit => 0.75f,
+                        PetModel.Phoenix
+                        or PetModel.Titan
+                        or PetModel.Garuda
+                        => 1f,
+                        _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                    };
+                }
+            default:
+                throw new ArgumentException("Invalid PetSize provided.", size.ToString());
+        }
+    }
+
+    public unsafe void CheckPetRemoval(BattleChara* pet, Character* character, ConcurrentDictionary<ulong, PetStruct> removalQueue)
+    {
+        foreach (var player in removalQueue)
+        {
+            if (pet is null || character is null)
+            {
+                continue;
+            }
+            if (!Enum.IsDefined(typeof(PetModel), pet->ModelCharaId))
+            {
+                continue;
+            }
+            if (player.Key != character->ContentId)
+            {
+                continue;
+            }
+            if ((PetModel)pet->ModelCharaId != player.Value.PetID)
+            {
+                continue;
+            }
+            SetScale(pet, GetDefaultScale(player.Value.PetID, player.Value.PetSize));
+            removalQueue.TryRemove(player);
         }
     }
 }

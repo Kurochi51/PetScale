@@ -67,6 +67,16 @@ public static class ImGuiUtils
         }
     }
 
+    public static void CenterNextWindow(Vector2 windowSize, ImGuiCond cond = ImGuiCond.None)
+    {
+        if (!IsDrawSafe)
+        {
+            throw new InvalidOperationException($"{nameof(CenterNextWindow)} called outside {nameof(WindowSystem.Draw)} instance");
+        }
+        var center = ImGui.GetMainViewport().GetCenter();
+        ImGui.SetNextWindowPos(new Vector2(center.X - (windowSize.X / 2), center.Y - (windowSize.Y / 2)), cond);
+    }
+
     public static void CenterCursor(Vector2 windowSize, Vector2? offset = null)
     {
         if (!IsDrawSafe)
