@@ -49,7 +49,7 @@ public sealed class PetScale : IDalamudPlugin
     public static FrozenSet<PetModel> petModelSet { get; } = new HashSet<PetModel>((PetModel[])Enum.GetValues(typeof(PetModel))).ToFrozenSet();
     public static bool DrawAvailable { get; private set; }
 
-    public static Dictionary<PetRow, PetModel> presetPetModelMap { get; } = new()
+    internal static Dictionary<PetRow, PetModel> presetPetModelMap { get; } = new()
     {
         { PetRow.Bahamut,       PetModel.Bahamut        },
         { PetRow.Phoenix,       PetModel.Phoenix        },
@@ -59,7 +59,7 @@ public sealed class PetScale : IDalamudPlugin
         { PetRow.SolarBahamut,  PetModel.SolarBahamut   },
     };
 
-    public static Dictionary<PetRow, PetModel> customPetModelMap { get; } = new()
+    internal static Dictionary<PetRow, PetModel> customPetModelMap { get; } = new()
     {
         { PetRow.Eos,               PetModel.Eos                },
         { PetRow.Selene,            PetModel.Selene             },
@@ -79,9 +79,11 @@ public sealed class PetScale : IDalamudPlugin
 
     public static WindowSystem WindowSystem { get; } = new("PetScale");
     public Queue<(string Name, ulong ContentId, ushort HomeWorld)> players { get; } = new();
-    public Dictionary<ulong, PetStruct> removedPlayers { get; } = [];
+    internal Dictionary<ulong, PetStruct> removedPlayers { get; } = [];
     public bool requestedCache { get; set; } = true;
+    public bool queueFairyForRemoval { get; set; }
     public int lastIndexOfOthers { get; set; } = -1;
+    internal List<Pointer<BattleChara>> fairies { get; } = [];
     private ConfigWindow ConfigWindow { get; init; }
 #if DEBUG
     private DevWindow DevWindow { get; init; }
@@ -292,7 +294,7 @@ public sealed class PetScale : IDalamudPlugin
             var petName = chara.Value->Character.NameString;
             if (!petModelDic.ContainsKey(petName))
             {
-                PetModel? petModel = petModelHashSet.Contains((PetModel)chara.Value->ModelCharaId) ? (PetModel)chara.Value->Character.CharacterData.ModelCharaId : null;
+                PetModel? petModel = petModelSet.Contains((PetModel)chara.Value->ModelCharaId) ? (PetModel)chara.Value->Character.CharacterData.ModelCharaId : null;
                 petModelDic.Add(petName, (petModel, chara.Value->Character.CharacterData.ModelCharaId, Vector3.Zero, Vector3.Zero));
             }
 #endif
@@ -355,7 +357,12 @@ public sealed class PetScale : IDalamudPlugin
                 petModelDic[pet->NameString] = current;
             }
 #endif
-            if (config.FairyState is not PetState.Off && (PetModel)pet->Character.CharacterData.ModelCharaId is PetModel.Eos or PetModel.Selene)
+            if(queueFairyForRemoval)
+            {
+                CheckFairies(pet);
+            }
+            
+            if (config.FairyState is not PetState.Off && (PetModel)pet->ModelCharaId is PetModel.Eos or PetModel.Selene)
             {
                 switch (config.FairyState)
                 {
@@ -365,8 +372,12 @@ public sealed class PetScale : IDalamudPlugin
                     {
                         utilities.SetScale(pet, 1.5f);
                         activePetDictionary[pair.Key] = (pair.Value.character, true);
+                        if (!fairies.Contains(pair.Key))
+                        {
+                            fairies.Add(pair.Key);
+                        }
                         if (config.PetData
-                            .Any(item => item.PetID == (PetModel)pet->Character.CharacterData.ModelCharaId &&
+                            .Any(item => item.PetID == (PetModel)pet->ModelCharaId &&
                             (item.ContentId == character->ContentId
                             || (item.HomeWorld is not 0 && item.HomeWorld == character->HomeWorld && item.CharacterName.Equals(character->NameString, ordinalComparison))
                             || (item.HomeWorld is 0 && item.CharacterName.Equals(character->NameString, ordinalComparison)))))
@@ -536,6 +547,39 @@ public sealed class PetScale : IDalamudPlugin
             return true;
         }
         return false;
+    }
+
+    private unsafe void CheckFairies(BattleChara* pet)
+    {
+        if ((PetModel)pet->ModelCharaId is PetModel.Eos or PetModel.Selene)
+        {
+            List<Pointer<BattleChara>> removedFairies = [];
+            foreach (var fairy in fairies)
+            {
+                if (fairy.Value is null)
+                {
+                    continue;
+                }
+                if (fairy.Value->ModelCharaId != pet->ModelCharaId)
+                {
+                    continue;
+                }
+                if (fairy.Value->OwnerId != pet->OwnerId)
+                {
+                    continue;
+                }
+                if(Utilities.ResetFairy(fairy.Value, 1.5f))
+                {
+                    removedFairies.Add(fairy.Value);
+                }
+            }
+            foreach (var removedFairy in removedFairies)
+            {
+                fairies.Remove(removedFairy);
+            }
+            removedFairies.Clear();
+            queueFairyForRemoval = fairies.Count > 0;
+        }
     }
 
 #if DEBUG

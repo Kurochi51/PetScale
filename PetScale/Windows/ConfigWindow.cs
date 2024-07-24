@@ -48,9 +48,9 @@ public sealed class ConfigWindow : Window, IDisposable
     private const string LongestSize = "Medium", LongestWorldName = "Pandaemonium", LongestCharaName = "WWWWWWWWWWWWWWW WWWWW" + "@" + LongestWorldName;
     private const string WorldSelectModal = "World Select";
 
-    public Dictionary<string, PetModel> presetPetMap { get; } = new(StringComparer.Ordinal);
-    public Dictionary<string, PetModel> customPetMap { get; } = new(StringComparer.Ordinal);
-    public Dictionary<string, string> worldMap { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, PetModel> presetPetMap { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, PetModel> customPetMap { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, string> worldMap { get; } = new(StringComparer.Ordinal);
     private Queue<(string Name, ulong ContentId, ushort HomeWorld)> players => plugin.players;
     private Dictionary<ulong, PetStruct> removedPlayers => plugin.removedPlayers;
     private IList<PetStruct> petData => config.PetData;
@@ -130,91 +130,6 @@ public sealed class ConfigWindow : Window, IDisposable
         MiscTab();
     }
 
-    private void MiscTab()
-    {
-        using var miscTab = ImRaii.TabItem("Misc");
-        if (!miscTab)
-        {
-            return;
-        }
-        currentTab = Tab.None;
-        DrawRadioButtons(
-            "Scale SCH fairy to the size of other in-game fairies",
-            () =>
-            {
-                ImGui.SameLine();
-                ImGuiComponents.HelpMarker("Seraph is excluded, as she's bigger by default.\nThis will be overwritten by any size set for Eos or Selene.");
-            },
-            config,
-            c => (int)c.FairyState,
-            (c, value) => c.FairyState = (PetState)value,
-            "Off", "Self", "Others", "All");
-        DrawBottomButtons(onlyClose: true);
-    }
-
-    private void CustomTab()
-    {
-        using var otherPetsTab = ImRaii.TabItem("Other Pets");
-        if (!otherPetsTab)
-        {
-            return;
-        }
-        currentTab = Tab.Others;
-        ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
-        var buttonPressed = false;
-        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true);
-        ImGui.SameLine();
-        DrawComboBox("Pets", otherPetSelection, petWidth, out otherPetSelection, customPetMap.Keys, filter: false);
-        ImGui.SameLine();
-        ImGui.SetNextItemWidth(sizesWidth);
-        if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal)
-            && tempPetSize < Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom))
-        {
-            tempPetSize = Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom);
-        }
-        if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
-        {
-            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom), Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f), "%.3g", ImGuiSliderFlags.AlwaysClamp);
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip("Pet Size");
-            }
-        }
-        else
-        {
-            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, 1f, 4f, "%.3g", ImGuiSliderFlags.AlwaysClamp);
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip("Pet Size");
-            }
-        }
-        ImGui.SameLine();
-        if (ImGuiUtils.IconButton(iconFont, addButtonIcon, "AddButton", 1))
-        {
-            buttonPressed = true;
-        }
-        if (buttonPressed)
-        {
-            var error = false;
-            if (charaName.IsNullOrWhitespace() || charaName.Equals("Characters", StringComparison.Ordinal))
-            {
-                CreateNotification("Invalid Character selected", "Invalid entry", NotificationType.Error);
-                error = true;
-            }
-            if (otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
-            {
-                CreateNotification("Invalid Pet selected", "Invalid entry", NotificationType.Error);
-                error = true;
-            }
-            if (!error)
-            {
-                CheckOtherPossibleEntry();
-            }
-        }
-        DisplayEntries(customSize: true);
-        DrawBottomButtons(onlyClose: false, otherData: true);
-    }
-
     private void PresetTab()
     {
         using var generalTab = ImRaii.TabItem("Preset Pets");
@@ -262,6 +177,100 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawBottomButtons();
     }
 
+    private void CustomTab()
+    {
+        using var otherPetsTab = ImRaii.TabItem("Other Pets");
+        if (!otherPetsTab)
+        {
+            return;
+        }
+        currentTab = Tab.Others;
+        ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
+        var buttonPressed = false;
+        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true);
+        ImGui.SameLine();
+        DrawComboBox("Pets", otherPetSelection, petWidth, out otherPetSelection, customPetMap.Keys, filter: false);
+        ImGui.SameLine();
+        ImGui.SetNextItemWidth(sizesWidth);
+        if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal)
+            && tempPetSize < Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom))
+        {
+            tempPetSize = Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom);
+        }
+        if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
+        {
+            if (tempPetSize > Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f)
+            {
+                tempPetSize = Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f);
+            }
+            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom), Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f), "%.3g", ImGuiSliderFlags.AlwaysClamp);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Pet Size");
+            }
+        }
+        else
+        {
+            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, 1f, 4f, "%.3g", ImGuiSliderFlags.AlwaysClamp);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Pet Size");
+            }
+        }
+        ImGui.SameLine();
+        if (ImGuiUtils.IconButton(iconFont, addButtonIcon, "AddButton", 1))
+        {
+            buttonPressed = true;
+        }
+        if (buttonPressed)
+        {
+            var error = false;
+            if (charaName.IsNullOrWhitespace() || charaName.Equals("Characters", StringComparison.Ordinal))
+            {
+                CreateNotification("Invalid Character selected", "Invalid entry", NotificationType.Error);
+                error = true;
+            }
+            if (otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
+            {
+                CreateNotification("Invalid Pet selected", "Invalid entry", NotificationType.Error);
+                error = true;
+            }
+            if (!error)
+            {
+                CheckOtherPossibleEntry();
+            }
+        }
+        DisplayEntries(customSize: true);
+        DrawBottomButtons(onlyClose: false, otherData: true);
+    }
+
+    private void MiscTab()
+    {
+        using var miscTab = ImRaii.TabItem("Misc");
+        if (!miscTab)
+        {
+            return;
+        }
+        currentTab = Tab.None;
+        var fairyState = config.FairyState;
+        DrawRadioButtons(
+            "Scale SCH fairy to the size of other in-game fairies",
+            () =>
+            {
+                ImGui.SameLine();
+                ImGuiComponents.HelpMarker("Seraph is excluded, as she's bigger by default.\nThis will be overwritten by any size set for Eos or Selene.");
+            },
+            config,
+            c => (int)c.FairyState,
+            (c, value) => c.FairyState = (PetState)value,
+            "Off", "Self", "Others", "All");
+        if (config.FairyState != fairyState && plugin.fairies.Count > 0)
+        {
+            plugin.queueFairyForRemoval = true;
+        }
+        DrawBottomButtons(onlyClose: true);
+    }
+
     private unsafe void DisplayEntries(bool customSize = false)
     {
         using var tableBorderColor = ImRaii.PushColor(ImGuiCol.TableBorderStrong, ColorHelpers.RgbaVector4ToUint(*ImGui.GetStyleColorVec4(ImGuiCol.Border)));
@@ -271,14 +280,16 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             return;
         }
-
+        var clipperCount = customSize ? petData.Count(item => item.PetSize is PetSize.Custom) : petData.Count(item => item.PetSize is not PetSize.Custom);
+        var petList = customSize ? petData.Where(item => item.PetSize is PetSize.Custom).ToList() : petData.Where(item => item.PetSize is not PetSize.Custom).ToList();
+        Utilities.SortList(ref petList, customSize);
         ImGui.TableSetupColumn("Character", ImGuiTableColumnFlags.WidthFixed, charaWidth);
         ImGui.TableSetupColumn("Pet", ImGuiTableColumnFlags.WidthFixed, petWidth);
         ImGui.TableSetupColumn("PetSize", ImGuiTableColumnFlags.WidthFixed, sizesWidth);
         ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).X);
         var itemRemoved = false;
         var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
-        clipper.Begin(petData.Count, ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2));
+        clipper.Begin(clipperCount, ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2));
 
         var clipperBreak = false;
         while (clipper.Step())
@@ -289,17 +300,17 @@ public sealed class ConfigWindow : Window, IDisposable
             }
             for (var i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
             {
-                if (i >= petData.Count)
+                if (i >= clipperCount)
                 {
                     clipperBreak = true;
                     break;
                 }
-                if ((customSize && petData[i].PetSize is not PetSize.Custom)
-                    || (!customSize && petData[i].PetSize is PetSize.Custom))
+                if ((customSize && petList[i].PetSize is not PetSize.Custom)
+                    || (!customSize && petList[i].PetSize is PetSize.Custom))
                 {
                     continue;
                 }
-                DisplayTableRow(petData[i], i, customSize, "##" + i.ToString(CultureInfo.CurrentCulture), ref itemRemoved);
+                DisplayTableRow(petList[i], customSize, "##" + i.ToString(CultureInfo.CurrentCulture), ref itemRemoved);
             }
         }
         clipper.End();
@@ -310,7 +321,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private void DisplayTableRow(PetStruct item, int index, bool customSize, string buttonId, ref bool itemRemoved)
+    private void DisplayTableRow(PetStruct item, bool customSize, string buttonId, ref bool itemRemoved)
     {
         ImGui.TableNextRow();
         ImGui.TableSetColumnIndex(0);
@@ -330,8 +341,8 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.SetCursorPosX(tableButtonAlignmentOffset);
         if (ImGuiUtils.IconButton(iconFont, deleteButtonIcon, buttonId + deleteButtonIcon, 1))
         {
-            removedPlayers.TryAdd(petData[index].ContentId, petData[index]);
-            petData.RemoveAt(index);
+            removedPlayers.TryAdd(item.ContentId, item);
+            petData.Remove(item);
             CreateNotification("Entry " + item.CharacterName + ", " + petSelection + ", " + (customSize ? item.AltPetSize.ToString(CultureInfo.CurrentCulture) : sizeMap[item.PetSize]) + " was removed.", "Entry removed");
             itemRemoved = true;
         }

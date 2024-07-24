@@ -31,6 +31,22 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             return worldSheet;
         }
     }
+    internal static List<PetModel> SortedModels { get; } =
+        [
+            PetModel.Eos,
+            PetModel.Selene,
+            PetModel.Seraph,
+            PetModel.Rook,
+            PetModel.AutomatonQueen,
+            PetModel.Esteem,
+            PetModel.Carbuncle,
+            PetModel.RubyCarbuncle,
+            PetModel.TopazCarbuncle,
+            PetModel.EmeraldCarbuncle,
+            PetModel.IfritEgi,
+            PetModel.TitanEgi,
+            PetModel.GarudaEgi,
+        ];
 
     /// <summary>
     ///     Attempt to retrieve an <see cref="ExcelSheet{T}"/>, optionally in a specific <paramref name="language"/>.
@@ -365,6 +381,30 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         }
     }
 
+    public static unsafe bool ResetFairy(BattleChara* fairy, float size)
+    {
+        var fairyModel = (PetModel)fairy->ModelCharaId;
+        if (!PetScale.petModelSet.Contains(fairyModel) || fairyModel is not PetModel.Eos and not PetModel.Selene)
+        {
+            return false;
+        }
+        if (fairy->Scale != size)
+        {
+            return false;
+        }
+        var scale = GetDefaultScale(fairyModel, PetSize.Custom);
+        fairy->Scale = scale;
+        fairy->ModelScale = scale;
+        var drawObject = fairy->GetDrawObject();
+        if (drawObject is not null)
+        {
+            drawObject->Scale.X = scale;
+            drawObject->Scale.Y = scale;
+            drawObject->Scale.Z = scale;
+        }
+        return true;
+    }
+
     public static PetSize GetVanillaPetSize(uint pet)
     {
         return pet switch
@@ -391,5 +431,51 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         sizeMap.TryAdd(PetModel.Ifrit, GetVanillaPetSize(ifritSize));
         sizeMap.TryAdd(PetModel.Titan, GetVanillaPetSize(titanSize));
         sizeMap.TryAdd(PetModel.Garuda, GetVanillaPetSize(garudaSize));
+    }
+
+    internal static void SortList(ref List<PetStruct> petList, bool customSize)
+    {
+        if (petList.Count is 0)
+        {
+            return;
+        }
+        var tempEnumerable = petList.Where(item => item.CharacterName.Equals(PetScale.Others, StringComparison.Ordinal));
+        if (customSize)
+        {
+            if (tempEnumerable.Count() is not 0)
+            {
+                var tempList = tempEnumerable.ToList();
+                tempList.AddRange([.. petList
+                    .Except(tempList)
+                    .OrderBy(item => SortedModels.FindIndex(sItem => sItem == item.PetID))
+                    .ThenBy(item => item.CharacterName, StringComparer.Ordinal),]);
+                if (tempList.Count == petList.Count && petList.ToHashSet().SetEquals(tempList))
+                {
+                    petList = tempList;
+                }
+            }
+            else
+            {
+                var orderedList = petList
+                    .OrderBy(item => SortedModels.FindIndex(sItem => sItem == item.PetID))
+                    .ThenBy(item => item.CharacterName, StringComparer.Ordinal).ToList();
+                petList = orderedList;
+            }
+            return;
+        }
+        if (tempEnumerable.Count() is not 0)
+        {
+            var tempList = tempEnumerable.ToList();
+            tempList.AddRange([.. petList.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal)]);
+            if (tempList.Count == petList.Count && petList.ToHashSet().SetEquals(tempList))
+            {
+                petList = tempList;
+            }
+        }
+        else
+        {
+            var orderedList = petList.OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal).ToList();
+            petList = orderedList;
+        }
     }
 }
