@@ -372,7 +372,6 @@ public sealed class ConfigWindow : Window, IDisposable
             if (ImGui.InputTextWithHint("##Filter" + label, newEntryPossible ? "New Entry or Filter.." : "Filter..", ref filterStr, 21, ImGuiInputTextFlags.EnterReturnsTrue))
             {
                 comboFilter[comboLabel] = filterStr.Trim();
-                log.Debug("filter matches {a}", tempList.Count(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)));
                 if (newEntryPossible && tempList.Count(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)) is 0)
                 {
                     showModal = true;
