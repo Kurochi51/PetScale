@@ -5,7 +5,6 @@ using System.Threading;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 
 using ImGuiNET;
@@ -53,7 +52,7 @@ public sealed class ConfigWindow : Window, IDisposable
     public Dictionary<string, PetModel> customPetMap { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> worldMap { get; } = new(StringComparer.Ordinal);
     private Queue<(string Name, ulong ContentId, ushort HomeWorld)> players => plugin.players;
-    private ConcurrentDictionary<ulong, PetStruct> removedPlayers => plugin.removedPlayers;
+    private Dictionary<ulong, PetStruct> removedPlayers => plugin.removedPlayers;
     private IList<PetStruct> petData => config.PetData;
     private IFontHandle iconFont => pluginInterface.UiBuilder.IconFontFixedWidthHandle;
 

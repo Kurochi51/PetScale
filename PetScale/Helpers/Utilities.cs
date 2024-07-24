@@ -1,12 +1,12 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets2;
 using Dalamud.Game;
 using Dalamud.Utility;
+using Dalamud.Game.Config;
 using Dalamud.Plugin.Services;
 using Dalamud.Game.ClientState.Objects.Types;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
@@ -174,7 +174,8 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
     /// </summary>
     /// <remarks>
     /// When the provided <paramref name="size"/> is <see cref="PetSize.Custom"/> and the <paramref name="pet"/>
-    /// is one of the SMN pets that use "/petsize", the returned value will correspond to <see cref="PetSize.SmallModelScale"/>.
+    /// is one of the SMN pets that use "/petsize", the returned value will correspond to <see cref="PetSize.SmallModelScale"/>,
+    /// unless the player is logged in, which will instead return the in-game value.
     /// </remarks>
     /// <exception cref="ArgumentException"> <see cref="PetModel.AllPets"/> is not an accepted value. </exception>
     public static float GetDefaultScale(PetModel pet, PetSize size, bool vfx = false)
@@ -186,6 +187,34 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         if (size is not PetSize.Custom)
         {
             return GetPresetSize(pet, size);
+        }
+        if (PetScale.vanillaPetSizeMap.Count is 0)
+        {
+            return pet switch
+            {
+                PetModel.Eos
+                or PetModel.Selene
+                or PetModel.Carbuncle
+                or PetModel.Esteem
+                or PetModel.RubyCarbuncle
+                or PetModel.TopazCarbuncle
+                or PetModel.EmeraldCarbuncle
+                or PetModel.Rook
+                => 1f,
+                PetModel.GarudaEgi
+                or PetModel.IfritEgi
+                => 0.4f,
+                PetModel.TitanEgi => 0.35f,
+                PetModel.Seraph => 1.25f,
+                PetModel.AutomatonQueen => 1.3f,
+                PetModel.SolarBahamut => GetDefaultScale(PetModel.SolarBahamut, PetSize.SmallModelScale),
+                PetModel.Bahamut => GetDefaultScale(PetModel.Bahamut, PetSize.SmallModelScale),
+                PetModel.Phoenix => GetDefaultScale(PetModel.Phoenix, PetSize.SmallModelScale),
+                PetModel.Ifrit => GetDefaultScale(PetModel.Ifrit, PetSize.SmallModelScale),
+                PetModel.Titan => GetDefaultScale(PetModel.Titan, PetSize.SmallModelScale),
+                PetModel.Garuda => GetDefaultScale(PetModel.Garuda, PetSize.SmallModelScale),
+                _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+            };
         }
         return pet switch
         {
@@ -204,13 +233,12 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             PetModel.TitanEgi => 0.35f,
             PetModel.Seraph => 1.25f,
             PetModel.AutomatonQueen => 1.3f,
-            PetModel.SolarBahamut => 0.13f,
-            PetModel.Bahamut => 0.1f,
-            PetModel.Ifrit => 0.25f,
-            PetModel.Phoenix
-            or PetModel.Titan
-            or PetModel.Garuda
-            => 0.33f,
+            PetModel.SolarBahamut => GetDefaultScale(PetModel.SolarBahamut, PetScale.vanillaPetSizeMap[PetModel.SolarBahamut]),
+            PetModel.Bahamut => GetDefaultScale(PetModel.Bahamut, PetScale.vanillaPetSizeMap[PetModel.Bahamut]),
+            PetModel.Phoenix => GetDefaultScale(PetModel.Phoenix, PetScale.vanillaPetSizeMap[PetModel.Phoenix]),
+            PetModel.Ifrit => GetDefaultScale(PetModel.Ifrit, PetScale.vanillaPetSizeMap[PetModel.Ifrit]),
+            PetModel.Titan => GetDefaultScale(PetModel.Titan, PetScale.vanillaPetSizeMap[PetModel.Titan]),
+            PetModel.Garuda => GetDefaultScale(PetModel.Garuda, PetScale.vanillaPetSizeMap[PetModel.Garuda]),
             _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
         };
     }
@@ -295,28 +323,73 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         }
     }
 
-    public unsafe void CheckPetRemoval(BattleChara* pet, Character* character, ConcurrentDictionary<ulong, PetStruct> removalQueue)
+    public unsafe void CheckPetRemoval(IDictionary<ulong, PetStruct> removalQueue, IDictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePlayers)
     {
-        foreach (var player in removalQueue)
+        foreach (var removedPlayer in removalQueue)
         {
-            if (pet is null || character is null)
+            foreach (var activePlayer in activePlayers)
             {
-                continue;
+                var pet = activePlayer.Key.Value;
+                var character = activePlayer.Value.character.Value;
+                if (pet is null || character is null)
+                {
+                    continue;
+                }
+                if (!PetScale.petModelSet.Contains((PetModel)pet->ModelCharaId))
+                {
+                    continue;
+                }
+                if (removedPlayer.Key != character->ContentId)
+                {
+                    continue;
+                }
+                if (removedPlayer.Value.PetID is PetModel.AllPets && PetScale.vanillaPetSizeMap.TryGetValue((PetModel)pet->ModelCharaId, out var size))
+                {
+                    SetScale(pet, GetDefaultScale((PetModel)pet->ModelCharaId, size));
+                    removalQueue.Remove(removedPlayer);
+                    continue;
+                }
+                if ((PetModel)pet->ModelCharaId != removedPlayer.Value.PetID)
+                {
+                    continue;
+                }
+                if (removedPlayer.Value.PetSize is PetSize.Custom)
+                {
+                    SetScale(pet, GetDefaultScale(removedPlayer.Value.PetID, removedPlayer.Value.PetSize));
+                    removalQueue.Remove(removedPlayer);
+                    continue;
+                }
+                SetScale(pet, GetDefaultScale(removedPlayer.Value.PetID, PetScale.vanillaPetSizeMap[(PetModel)pet->ModelCharaId]));
+                removalQueue.Remove(removedPlayer);
             }
-            if (!Enum.IsDefined(typeof(PetModel), pet->ModelCharaId))
-            {
-                continue;
-            }
-            if (player.Key != character->ContentId)
-            {
-                continue;
-            }
-            if ((PetModel)pet->ModelCharaId != player.Value.PetID)
-            {
-                continue;
-            }
-            SetScale(pet, GetDefaultScale(player.Value.PetID, player.Value.PetSize));
-            removalQueue.TryRemove(player);
         }
+    }
+
+    public static PetSize GetVanillaPetSize(uint pet)
+    {
+        return pet switch
+        {
+            1 => PetSize.MediumModelScale,
+            3 => PetSize.LargeModelScale,
+            _ => PetSize.SmallModelScale,
+        };
+    }
+
+    public static void GetPetSizes(IGameConfig gConfig, IDictionary<PetModel, PetSize> sizeMap)
+    {
+        sizeMap.Clear();
+        gConfig.TryGet(UiConfigOption.SolBahamutSize, out uint solBahamutSize);
+        gConfig.TryGet(UiConfigOption.PhoenixSize, out uint phoenixSize);
+        gConfig.TryGet(UiConfigOption.BahamutSize, out uint bahamutSize);
+        gConfig.TryGet(UiConfigOption.IfritSize, out uint ifritSize);
+        gConfig.TryGet(UiConfigOption.TitanSize, out uint titanSize);
+        gConfig.TryGet(UiConfigOption.GarudaSize, out uint garudaSize);
+
+        sizeMap.TryAdd(PetModel.SolarBahamut, GetVanillaPetSize(solBahamutSize));
+        sizeMap.TryAdd(PetModel.Phoenix, GetVanillaPetSize(phoenixSize));
+        sizeMap.TryAdd(PetModel.Bahamut, GetVanillaPetSize(bahamutSize));
+        sizeMap.TryAdd(PetModel.Ifrit, GetVanillaPetSize(ifritSize));
+        sizeMap.TryAdd(PetModel.Titan, GetVanillaPetSize(titanSize));
+        sizeMap.TryAdd(PetModel.Garuda, GetVanillaPetSize(garudaSize));
     }
 }

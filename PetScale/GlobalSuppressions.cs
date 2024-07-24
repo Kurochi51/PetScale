@@ -14,3 +14,4 @@ using System.Diagnostics.CodeAnalysis;
 [assembly: SuppressMessage("Design", "MA0016:Prefer using collection abstraction instead of implementation", Justification = "No", Scope = "member", Target = "~P:PetScale.Windows.ConfigWindow.worldMap")]
 [assembly: SuppressMessage("Design", "MA0016:Prefer using collection abstraction instead of implementation", Justification = "No", Scope = "member", Target = "~P:PetScale.PetScale.presetPetModelMap")]
 [assembly: SuppressMessage("Design", "MA0016:Prefer using collection abstraction instead of implementation", Justification = "No", Scope = "member", Target = "~P:PetScale.PetScale.customPetModelMap")]
+[assembly: SuppressMessage("Design", "MA0016:Prefer using collection abstraction instead of implementation", Justification = "No", Scope = "member", Target = "~P:PetScale.PetScale.removedPlayers")]
