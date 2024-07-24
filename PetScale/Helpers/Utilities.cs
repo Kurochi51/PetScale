@@ -355,7 +355,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     continue;
                 }
-                if (removedPlayer.Key != character->ContentId)
+                if (removedPlayer.Key != character->ContentId && !removedPlayer.Value.Generic)
                 {
                     continue;
                 }
@@ -448,7 +448,8 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 tempList.AddRange([.. petList
                     .Except(tempList)
                     .OrderBy(item => SortedModels.FindIndex(sItem => sItem == item.PetID))
-                    .ThenBy(item => item.CharacterName, StringComparer.Ordinal),]);
+                    .ThenBy(item => item.CharacterName, StringComparer.Ordinal),
+                ]);
                 if (tempList.Count == petList.Count && petList.ToHashSet().SetEquals(tempList))
                 {
                     petList = tempList;

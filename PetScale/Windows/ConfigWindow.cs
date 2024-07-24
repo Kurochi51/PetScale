@@ -140,7 +140,14 @@ public sealed class ConfigWindow : Window, IDisposable
         currentTab = Tab.Summoner;
         ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
-        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true);
+        if (DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true))
+        {
+            var label = "##ComboCharacters" + "_" + currentTab.ToString();
+            if (comboFilter.ContainsKey(label))
+            {
+                comboFilter[label] = string.Empty;
+            }
+        }
         ImGui.SameLine();
         DrawComboBox("Pets", petSelection, petWidth, out petSelection, presetPetMap.Keys, filter: false);
         ImGui.SameLine();
@@ -187,36 +194,18 @@ public sealed class ConfigWindow : Window, IDisposable
         currentTab = Tab.Others;
         ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
-        DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true);
+        if (DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true))
+        {
+            var label = "##ComboCharacters" + "_" + currentTab.ToString();
+            if (comboFilter.ContainsKey(label))
+            {
+                comboFilter[label] = string.Empty;
+            }
+        }
         ImGui.SameLine();
         DrawComboBox("Pets", otherPetSelection, petWidth, out otherPetSelection, customPetMap.Keys, filter: false);
         ImGui.SameLine();
-        ImGui.SetNextItemWidth(sizesWidth);
-        if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal)
-            && tempPetSize < Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom))
-        {
-            tempPetSize = Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom);
-        }
-        if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
-        {
-            if (tempPetSize > Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f)
-            {
-                tempPetSize = Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f);
-            }
-            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom), Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f), "%.3g", ImGuiSliderFlags.AlwaysClamp);
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip("Pet Size");
-            }
-        }
-        else
-        {
-            ImGui.DragFloat("##TempPetSize", ref tempPetSize, 0.01f, 1f, 4f, "%.3g", ImGuiSliderFlags.AlwaysClamp);
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip("Pet Size");
-            }
-        }
+        CustomSizeInput(sizesWidth, ref tempPetSize);
         ImGui.SameLine();
         if (ImGuiUtils.IconButton(iconFont, addButtonIcon, "AddButton", 1))
         {
@@ -237,6 +226,11 @@ public sealed class ConfigWindow : Window, IDisposable
             }
             if (!error)
             {
+                var label = "##ComboCharacters" + "_" + currentTab.ToString();
+                if (comboFilter.ContainsKey(label))
+                {
+                    comboFilter[label] = string.Empty;
+                }
                 CheckOtherPossibleEntry();
             }
         }
@@ -349,11 +343,12 @@ public sealed class ConfigWindow : Window, IDisposable
     }
 
     // I don't like the way filters are managed, but I can't think of a better way
-    private void DrawComboBox<T>(string label, string current, float width, out string result,
+    private bool DrawComboBox<T>(string label, string current, float width, out string result,
         IReadOnlyCollection<T> list, bool filter, bool newEntryPossible = false) where T : notnull
     {
+        var itemSelected = false;
         ImGui.SetNextItemWidth(width);
-        var comboLabel = "##Combo" + label;
+        var comboLabel = "##Combo" + label + "_" + currentTab.ToString();
         using var combo = ImRaii.Combo(comboLabel, current);
         result = current;
         if (!combo)
@@ -362,7 +357,7 @@ public sealed class ConfigWindow : Window, IDisposable
             {
                 comboFilter.Remove(comboLabel);
             }
-            return;
+            return itemSelected;
         }
         var tempList = list.Select(item => item.ToString()!).ToList();
         if (tempList.Count > 1 && filter)
@@ -371,22 +366,21 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         if (filter)
         {
-            comboLabel += "_" + currentTab.ToString();
             comboFilter.TryAdd(comboLabel, string.Empty);
             ImGui.SetNextItemWidth(width);
             var filterStr = comboFilter[comboLabel];
             if (ImGui.InputTextWithHint("##Filter" + label, newEntryPossible ? "New Entry or Filter.." : "Filter..", ref filterStr, 21, ImGuiInputTextFlags.EnterReturnsTrue))
             {
-                comboFilter[comboLabel] = filterStr;
+                comboFilter[comboLabel] = filterStr.Trim();
                 log.Debug("filter matches {a}", tempList.Count(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)));
                 if (newEntryPossible && tempList.Count(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)) is 0)
                 {
                     showModal = true;
-                    filterStr = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(comboFilter[comboLabel].ToLower(CultureInfo.CurrentCulture));
+                    filterStr = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(comboFilter[comboLabel].ToLower(CultureInfo.CurrentCulture)).Trim();
                     ImGui.OpenPopup(WorldSelectModal);
                 }
             }
-            comboFilter[comboLabel] = filterStr;
+            comboFilter[comboLabel] = filterStr.Trim();
             if (newEntryPossible && ImGui.IsItemHovered())
             {
                 ImGui.SetTooltip("New entry can be made, by pressing enter, if your search doesn't return any returns in the list");
@@ -407,11 +401,16 @@ public sealed class ConfigWindow : Window, IDisposable
         var height = ImGui.GetTextLineHeightWithSpacing() * Math.Min(itemCount + 1.5f, 8);
         height += itemCount > 0 ? -ImGui.GetFrameHeight() - ImGui.GetStyle().WindowPadding.Y - ImGui.GetStyle().FramePadding.Y : 0;
         using var listChild = ImRaii.Child("###child" + label, new Vector2(width, height));
-        DrawClippedList(itemCount, current, tempList, out result);
+        if (DrawClippedList(itemCount, current, tempList, out result))
+        {
+            itemSelected = true;
+        }
+        return itemSelected;
     }
 
-    private static unsafe void DrawClippedList(int itemCount, string preview, IReadOnlyList<string> list, out string result)
+    private static unsafe bool DrawClippedList(int itemCount, string preview, IReadOnlyList<string> list, out string result)
     {
+        var itemSelected = false;
         result = preview;
         var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
         clipper.Begin(itemCount, ImGui.GetTextLineHeightWithSpacing());
@@ -436,11 +435,13 @@ public sealed class ConfigWindow : Window, IDisposable
                     continue;
                 }
                 result = item;
+                itemSelected = true;
                 ImGui.CloseCurrentPopup();
             }
         }
         clipper.End();
         clipper.Destroy();
+        return itemSelected;
     }
 
     private void CheckOtherPossibleEntry(string? altName = null)
@@ -804,6 +805,36 @@ public sealed class ConfigWindow : Window, IDisposable
             }
         }
         return false;
+    }
+
+    private void CustomSizeInput(float size, ref float petSize)
+    {
+        ImGui.SetNextItemWidth(size);
+        if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal)
+            && petSize < Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom))
+        {
+            petSize = Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom);
+        }
+        if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
+        {
+            if (petSize > Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f)
+            {
+                petSize = Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f);
+            }
+            ImGui.DragFloat("##TempPetSize", ref petSize, 0.01f, Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom), Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f), "%.3g", ImGuiSliderFlags.AlwaysClamp);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Pet Size");
+            }
+        }
+        else
+        {
+            ImGui.DragFloat("##TempPetSize", ref petSize, 0.01f, 1f, 4f, "%.3g", ImGuiSliderFlags.AlwaysClamp);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip("Pet Size");
+            }
+        }
     }
 
     public void Dispose()

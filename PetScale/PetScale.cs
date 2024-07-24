@@ -357,11 +357,11 @@ public sealed class PetScale : IDalamudPlugin
                 petModelDic[pet->NameString] = current;
             }
 #endif
-            if(queueFairyForRemoval)
+            if (queueFairyForRemoval)
             {
                 CheckFairies(pet);
             }
-            
+
             if (config.FairyState is not PetState.Off && (PetModel)pet->ModelCharaId is PetModel.Eos or PetModel.Selene)
             {
                 switch (config.FairyState)
@@ -568,7 +568,7 @@ public sealed class PetScale : IDalamudPlugin
                 {
                     continue;
                 }
-                if(Utilities.ResetFairy(fairy.Value, 1.5f))
+                if (Utilities.ResetFairy(fairy.Value, 1.5f))
                 {
                     removedFairies.Add(fairy.Value);
                 }
