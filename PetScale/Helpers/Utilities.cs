@@ -71,7 +71,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         }
     }
 
-    public unsafe void SetScale(BattleChara* pet, float scale, float? vfxScale = null)
+    public static unsafe void SetScale(BattleChara* pet, float scale, float? vfxScale = null)
     {
         if (pet is null)
         {
@@ -83,7 +83,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         }
         pet->Scale = scale;
         pet->ModelScale = scale;
-        var drawObject = pet->Character.GameObject.GetDrawObject();
+        var drawObject = pet->GetDrawObject();
         if (drawObject is not null)
         {
             drawObject->Scale.X = scale;
@@ -112,29 +112,29 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             {
                 continue;
             }
-            if (chara.Value->Character.GameObject.ObjectKind is not ObjectKind.Pc || chara.Value->Character.GameObject.EntityId is 0xE0000000)
+            if (chara.Value->ObjectKind is not ObjectKind.Pc || chara.Value->EntityId is 0xE0000000)
             {
                 continue;
             }
-            if (chara.Value->Character.GameObject.EntityId != playerEntityId)
+            if (chara.Value->EntityId != playerEntityId)
             {
                 var world = string.Empty;
-                if (homeWorld is not 0 && homeWorld != chara.Value->Character.HomeWorld && !GetHomeWorldName(chara.Value->Character.HomeWorld).IsNullOrWhitespace())
+                if (homeWorld is not 0 && homeWorld != chara.Value->HomeWorld && !GetHomeWorldName(chara.Value->HomeWorld).IsNullOrWhitespace())
                 {
-                    world = "@" + GetHomeWorldName(chara.Value->Character.HomeWorld);
+                    world = "@" + GetHomeWorldName(chara.Value->HomeWorld);
                 }
-                queue.Enqueue((chara.Value->Character.NameString + world, chara.Value->ContentId, chara.Value->HomeWorld));
+                queue.Enqueue((chara.Value->NameString + world, chara.Value->ContentId, chara.Value->HomeWorld));
             }
         }
     }
 
-    public unsafe bool PetVisible(BattleChara* pet)
+    public static unsafe bool PetVisible(BattleChara* pet)
     {
-        if (pet is null || pet->Character.GameObject.GetDrawObject() is null)
+        if (pet is null || pet->GetDrawObject() is null)
         {
             return false;
         }
-        return pet->Character.GameObject.GetDrawObject()->IsVisible;
+        return pet->GetDrawObject()->IsVisible;
     }
 
     public ushort GetHomeWorldId(string name)
@@ -339,7 +339,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         }
     }
 
-    public unsafe void CheckPetRemoval(IDictionary<ulong, PetStruct> removalQueue, IDictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePlayers)
+    public static unsafe void CheckPetRemoval(IDictionary<ulong, PetStruct> removalQueue, IDictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePlayers)
     {
         foreach (var removedPlayer in removalQueue)
         {
@@ -403,6 +403,46 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             drawObject->Scale.Z = scale;
         }
         return true;
+    }
+
+    public static unsafe void ResetPets(IDictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePets, IList<PetStruct> userData)
+    {
+        foreach (var pair in activePets)
+        {
+            var pet = pair.Key.Value;
+            var character = pair.Value.character.Value;
+            if (pet is null || character is null)
+            {
+                continue;
+            }
+            var petModel = (PetModel)pet->ModelCharaId;
+            if (!PetScale.petModelSet.Contains(petModel))
+            {
+                continue;
+            }
+            foreach (var data in userData)
+            {
+                if (data.ContentId != character->ContentId && !data.Generic)
+                {
+                    continue;
+                }
+                if (data.PetID is PetModel.AllPets && PetScale.vanillaPetSizeMap.TryGetValue(petModel, out var size))
+                {
+                    SetScale(pet, GetDefaultScale(petModel, size));
+                    continue;
+                }
+                if (petModel != data.PetID)
+                {
+                    continue;
+                }
+                if (data.PetSize is PetSize.Custom)
+                {
+                    SetScale(pet, GetDefaultScale(data.PetID, data.PetSize));
+                    continue;
+                }
+                SetScale(pet, GetDefaultScale(data.PetID, PetScale.vanillaPetSizeMap[petModel]));
+            }
+        }
     }
 
     public static PetSize GetVanillaPetSize(uint pet)

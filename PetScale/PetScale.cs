@@ -343,7 +343,7 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            if (!utilities.PetVisible(pet))
+            if (!Utilities.PetVisible(pet))
             {
                 continue;
             }
@@ -370,7 +370,7 @@ public sealed class PetScale : IDalamudPlugin
                     case PetState.Others when character->EntityId != playerEntityId:
                     case PetState.All:
                     {
-                        utilities.SetScale(pet, 1.5f);
+                        Utilities.SetScale(pet, 1.5f);
                         activePetDictionary[pair.Key] = (pair.Value.character, true);
                         if (!fairies.Contains(pair.Key))
                         {
@@ -397,7 +397,7 @@ public sealed class PetScale : IDalamudPlugin
         }
         if (removedPlayers.Count > 0)
         {
-            utilities.CheckPetRemoval(removedPlayers, activePetDictionary);
+            Utilities.CheckPetRemoval(removedPlayers, activePetDictionary);
             removedPlayers.Clear();
         }
     }
@@ -533,7 +533,7 @@ public sealed class PetScale : IDalamudPlugin
                 PetSize.LargeModelScale => petSizeMap[petName].largeScale,
                 _ => throw new ArgumentException("Invalid PetSize", paramName: userData.PetSize.ToString()),
             };
-            utilities.SetScale(pet, scale);
+            Utilities.SetScale(pet, scale);
             return true;
         }
         if (clientState.IsPvPExcludingDen)
@@ -543,7 +543,7 @@ public sealed class PetScale : IDalamudPlugin
         if (customPetModelMap.ContainsValue(userData.PetID) && userData.PetSize is PetSize.Custom)
         {
             var scale = Math.Max(userData.AltPetSize, Utilities.GetDefaultScale(userData.PetID, userData.PetSize));
-            utilities.SetScale(pet, scale);
+            Utilities.SetScale(pet, scale);
             return true;
         }
         return false;
@@ -607,6 +607,17 @@ public sealed class PetScale : IDalamudPlugin
         ConfigWindow.Toggle();
     }
 
+    private void UnsetPets()
+    {
+        if (!clientState.IsLoggedIn)
+        {
+            return;
+        }
+        activePetDictionary.Clear();
+        PopulateDictionary();
+        Utilities.ResetPets(activePetDictionary, config.PetData);
+    }
+
     public void Dispose()
     {
         stopwatch.Stop();
@@ -619,6 +630,7 @@ public sealed class PetScale : IDalamudPlugin
         pluginInterface.UiBuilder.OpenConfigUi -= ConfigWindow.Toggle;
         pluginInterface.UiBuilder.Draw -= UiDraw;
 
+        UnsetPets();
         ConfigWindow.Dispose();
         WindowSystem.RemoveAllWindows();
 
