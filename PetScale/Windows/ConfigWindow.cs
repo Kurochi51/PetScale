@@ -816,7 +816,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         if (!otherPetSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
         {
-            if (petSize > Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f)
+            if (petSize > Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f && petSize > 4f)
             {
                 petSize = Math.Max(Utilities.GetDefaultScale(customPetMap[otherPetSelection], PetSize.Custom) * 4f, 4f);
             }

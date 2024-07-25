@@ -286,16 +286,16 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            if (chara.Value->Character.GameObject.ObjectKind is not ObjectKind.BattleNpc || chara.Value->Character.GameObject.OwnerId is 0xE0000000)
+            if (chara.Value->ObjectKind is not ObjectKind.BattleNpc || chara.Value->OwnerId is 0xE0000000)
             {
                 continue;
             }
 #if DEBUG
-            var petName = chara.Value->Character.NameString;
+            var petName = chara.Value->NameString;
             if (!petModelDic.ContainsKey(petName))
             {
-                PetModel? petModel = petModelSet.Contains((PetModel)chara.Value->ModelCharaId) ? (PetModel)chara.Value->Character.CharacterData.ModelCharaId : null;
-                petModelDic.Add(petName, (petModel, chara.Value->Character.CharacterData.ModelCharaId, Vector3.Zero, Vector3.Zero));
+                PetModel? petModel = petModelSet.Contains((PetModel)chara.Value->ModelCharaId) ? (PetModel)chara.Value->ModelCharaId : null;
+                petModelDic.Add(petName, (petModel, chara.Value->ModelCharaId, Vector3.Zero, Vector3.Zero));
             }
 #endif
             if (!petModelSet.Contains((PetModel)chara.Value->ModelCharaId))
@@ -313,9 +313,9 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            if (chara.Value->Character.GameObject.ObjectKind is ObjectKind.Pc && chara.Value->Character.GameObject.EntityId is not 0xE0000000)
+            if (chara.Value->ObjectKind is ObjectKind.Pc && chara.Value->EntityId is not 0xE0000000)
             {
-                foreach (var possiblePair in activePetDictionary.Keys.Where(pet => pet.Value->Character.GameObject.OwnerId == chara.Value->Character.GameObject.EntityId))
+                foreach (var possiblePair in activePetDictionary.Keys.Where(pet => pet.Value->OwnerId == chara.Value->EntityId))
                 {
                     activePetDictionary[possiblePair] = ((Pointer<Character>)(&chara.Value->Character), false);
                 }
@@ -353,7 +353,7 @@ public sealed class PetScale : IDalamudPlugin
             if (drawModel is not null && petModelDic.TryGetValue(pet->NameString, out var current))
             {
                 current.scale = drawModel->Scale;
-                current.scale2 = new Vector3(pet->Character.Scale, pet->Character.ModelScale, pet->Character.VfxScale);
+                current.scale2 = new Vector3(pet->Scale, pet->ModelScale, pet->VfxScale);
                 petModelDic[pet->NameString] = current;
             }
 #endif
@@ -366,8 +366,8 @@ public sealed class PetScale : IDalamudPlugin
             {
                 switch (config.FairyState)
                 {
-                    case PetState.Self when character->GameObject.EntityId == playerEntityId:
-                    case PetState.Others when character->GameObject.EntityId != playerEntityId:
+                    case PetState.Self when character->EntityId == playerEntityId:
+                    case PetState.Others when character->EntityId != playerEntityId:
                     case PetState.All:
                     {
                         utilities.SetScale(pet, 1.5f);
@@ -390,7 +390,7 @@ public sealed class PetScale : IDalamudPlugin
                         break;
                 }
             }
-            if (ParseStruct(pet, character, pet->Character.CharacterData.ModelCharaId, character->GameObject.EntityId == playerEntityId, allPets))
+            if (ParseStruct(pet, character, pet->ModelCharaId, character->EntityId == playerEntityId, allPets))
             {
                 activePetDictionary[pair.Key] = (pair.Value.character, true);
             }
