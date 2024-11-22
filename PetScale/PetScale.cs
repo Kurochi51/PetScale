@@ -225,12 +225,16 @@ public sealed class PetScale : IDalamudPlugin
         ];
         foreach (var row in sortedRows)
         {
-            var currentRow = petSheet.GetRow(row);
-            if (!Enum.IsDefined((PetRow)currentRow.RowId) || !sortedRows.Contains(currentRow.RowId))
+            var currentRow = petSheet.GetRowOrDefault(row);
+            if (currentRow is null)
             {
                 continue;
             }
-            ConfigWindow.customPetMap.Add(currentRow.Name.GetText(), customPetModelMap[(PetRow)currentRow.RowId]);
+            if (!Enum.IsDefined((PetRow)currentRow.Value.RowId) || !sortedRows.Contains(currentRow.Value.RowId))
+            {
+                continue;
+            }
+            ConfigWindow.customPetMap.Add(currentRow.Value.Name.GetText(), customPetModelMap[(PetRow)currentRow.Value.RowId]);
         }
         foreach (var entry in petSizeMap)
         {
