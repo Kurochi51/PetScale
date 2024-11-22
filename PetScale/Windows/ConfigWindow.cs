@@ -372,7 +372,7 @@ public sealed class ConfigWindow : Window, IDisposable
             if (ImGui.InputTextWithHint("##Filter" + label, newEntryPossible ? "New Entry or Filter.." : "Filter..", ref filterStr, 21, ImGuiInputTextFlags.EnterReturnsTrue))
             {
                 comboFilter[comboLabel] = filterStr.Trim();
-                if (newEntryPossible && tempList.Count(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)) is 0)
+                if (newEntryPossible && !tempList.Exists(item => item.Contains(comboFilter[comboLabel], StringComparison.OrdinalIgnoreCase)))
                 {
                     showModal = true;
                     filterStr = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(comboFilter[comboLabel].ToLower(CultureInfo.CurrentCulture)).Trim();
@@ -658,7 +658,7 @@ public sealed class ConfigWindow : Window, IDisposable
             return;
         }
         var tempEnumerable = petData.Where(item => item.CharacterName.Equals(PetScale.Others, StringComparison.Ordinal));
-        if (tempEnumerable.Count() is not 0)
+        if (tempEnumerable.Any())
         {
             var tempList = tempEnumerable.ToList();
             tempList.AddRange([.. petData.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal)]);

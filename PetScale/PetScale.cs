@@ -10,12 +10,11 @@ using Dalamud.Utility;
 using Dalamud.Game.Command;
 using Dalamud.Plugin.Services;
 using Dalamud.Interface.Windowing;
-using Lumina.Excel.GeneratedSheets2;
+using Lumina.Excel.Sheets;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
-using FFXIVClientStructs.FFXIV.Common.Math;
 using FFXIVClientStructs.Interop;
 using PetScale.Structs;
 using PetScale.Helpers;
@@ -145,6 +144,8 @@ public sealed class PetScale : IDalamudPlugin
         }
     }
 
+    private void SetStopwatch(int _type, int _code) => SetStopwatch();
+
     private void SetStopwatch()
     {
         playerName = clientState.LocalPlayer?.Name.TextValue;
@@ -201,8 +202,8 @@ public sealed class PetScale : IDalamudPlugin
             }
             if (presetPetModelMap.ContainsKey((PetRow)pet.RowId))
             {
-                petSizeMap.Add(pet.Name, scales);
-                ConfigWindow.presetPetMap.Add(pet.Name, presetPetModelMap[(PetRow)pet.RowId]);
+                petSizeMap.Add(pet.Name.GetText(), scales);
+                ConfigWindow.presetPetMap.Add(pet.Name.GetText(), presetPetModelMap[(PetRow)pet.RowId]);
             }
         }
         // List of pet rows sorted by SCH pets, MCH pets, DRK pet, sub-90 SMN pets then in ascending order
@@ -225,15 +226,11 @@ public sealed class PetScale : IDalamudPlugin
         foreach (var row in sortedRows)
         {
             var currentRow = petSheet.GetRow(row);
-            if (currentRow is null)
-            {
-                continue;
-            }
             if (!Enum.IsDefined((PetRow)currentRow.RowId) || !sortedRows.Contains(currentRow.RowId))
             {
                 continue;
             }
-            ConfigWindow.customPetMap.Add(currentRow.Name, customPetModelMap[(PetRow)currentRow.RowId]);
+            ConfigWindow.customPetMap.Add(currentRow.Name.GetText(), customPetModelMap[(PetRow)currentRow.RowId]);
         }
         foreach (var entry in petSizeMap)
         {
@@ -252,7 +249,7 @@ public sealed class PetScale : IDalamudPlugin
         }
         if (config.HomeWorld is 0)
         {
-            config.HomeWorld = (ushort)player.HomeWorld.Id;
+            config.HomeWorld = (ushort)player.HomeWorld.Value.RowId;
         }
         unsafe
         {
@@ -298,7 +295,7 @@ public sealed class PetScale : IDalamudPlugin
                 petModelDic.Add(petName, (petModel, chara.Value->ModelCharaId, Vector3.Zero, Vector3.Zero));
             }
 #endif
-            if (!petModelSet.Contains((PetModel)chara.Value->ModelCharaId))
+            if (!petModelSet.Contains((PetModel)chara.Value->ModelContainer.ModelCharaId))
             {
                 continue;
             }
@@ -362,7 +359,7 @@ public sealed class PetScale : IDalamudPlugin
                 CheckFairies(pet);
             }
 
-            if (config.FairyState is not PetState.Off && (PetModel)pet->ModelCharaId is PetModel.Eos or PetModel.Selene)
+            if (config.FairyState is not PetState.Off && (PetModel)pet->ModelContainer.ModelCharaId is PetModel.Eos or PetModel.Selene)
             {
                 switch (config.FairyState)
                 {
@@ -377,7 +374,7 @@ public sealed class PetScale : IDalamudPlugin
                             fairies.Add(pair.Key);
                         }
                         if (config.PetData
-                            .Any(item => item.PetID == (PetModel)pet->ModelCharaId &&
+                            .Any(item => item.PetID == (PetModel)pet->ModelContainer.ModelCharaId &&
                             (item.ContentId == character->ContentId
                             || (item.HomeWorld is not 0 && item.HomeWorld == character->HomeWorld && item.CharacterName.Equals(character->NameString, ordinalComparison))
                             || (item.HomeWorld is 0 && item.CharacterName.Equals(character->NameString, ordinalComparison)))))
@@ -390,7 +387,7 @@ public sealed class PetScale : IDalamudPlugin
                         break;
                 }
             }
-            if (ParseStruct(pet, character, pet->ModelCharaId, character->EntityId == playerEntityId, allPets))
+            if (ParseStruct(pet, character, pet->ModelContainer.ModelCharaId, character->EntityId == playerEntityId, allPets))
             {
                 activePetDictionary[pair.Key] = (pair.Value.character, true);
             }
@@ -524,7 +521,7 @@ public sealed class PetScale : IDalamudPlugin
 
     private unsafe bool SetScale(BattleChara* pet, in PetStruct userData, string petName)
     {
-        if (presetPetModelMap.ContainsValue((PetModel)pet->ModelCharaId))
+        if (presetPetModelMap.ContainsValue((PetModel)pet->ModelContainer.ModelCharaId))
         {
             var scale = userData.PetSize switch
             {
@@ -551,7 +548,7 @@ public sealed class PetScale : IDalamudPlugin
 
     private unsafe void CheckFairies(BattleChara* pet)
     {
-        if ((PetModel)pet->ModelCharaId is PetModel.Eos or PetModel.Selene)
+        if ((PetModel)pet->ModelContainer.ModelCharaId is PetModel.Eos or PetModel.Selene)
         {
             List<Pointer<BattleChara>> removedFairies = [];
             foreach (var fairy in fairies)
@@ -560,7 +557,7 @@ public sealed class PetScale : IDalamudPlugin
                 {
                     continue;
                 }
-                if (fairy.Value->ModelCharaId != pet->ModelCharaId)
+                if (fairy.Value->ModelContainer.ModelCharaId != pet->ModelContainer.ModelCharaId)
                 {
                     continue;
                 }

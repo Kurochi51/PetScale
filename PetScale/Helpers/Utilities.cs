@@ -3,7 +3,8 @@ using System.Linq;
 using System.Collections.Generic;
 
 using Lumina.Excel;
-using Lumina.Excel.GeneratedSheets2;
+using Lumina.Excel.Sheets;
+using Lumina.Text.ReadOnly;
 using Dalamud.Game;
 using Dalamud.Utility;
 using Dalamud.Game.Config;
@@ -52,7 +53,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
     ///     Attempt to retrieve an <see cref="ExcelSheet{T}"/>, optionally in a specific <paramref name="language"/>.
     /// </summary>
     /// <returns><see cref="ExcelSheet{T}"/> or <see langword="null"/> if <see cref="IDataManager.GetExcelSheet{T}(ClientLanguage)"/> returns an invalid sheet.</returns>
-    public ExcelSheet<T>? GetSheet<T>(ClientLanguage language = ClientLanguage.English) where T : ExcelRow
+    public ExcelSheet<T>? GetSheet<T>(ClientLanguage language = ClientLanguage.English) where T : struct, IExcelRow<T>
     {
         try
         {
@@ -146,7 +147,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         }
         foreach (var world in WorldSheet.Where(item => item.IsPublic))
         {
-            if (!world.Name.ToDalamudString().TextValue.Equals(name, StringComparison.Ordinal))
+            if (!world.Name.GetText().Equals(name, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -162,7 +163,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         {
             return string.Empty;
         }
-        return WorldSheet.GetRow(id)?.Name ?? string.Empty;
+        return WorldSheet.GetRow(id).Name.GetText() ?? string.Empty;
     }
 
     public void InitWorldMap(IDictionary<string, string> worldDictionary)
@@ -177,11 +178,11 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             {
                 continue;
             }
-            if (currentWorld.Name.ToDalamudString().TextValue.Contains("test", StringComparison.Ordinal))
+            if (currentWorld.Name.GetText().Contains("test", StringComparison.Ordinal))
             {
                 continue;
             }
-            worldDictionary.Add(currentWorld.Name, currentWorld.DataCenter.Value!.Name.ToDalamudString().TextValue);
+            worldDictionary.Add(currentWorld.Name.GetText(), currentWorld.DataCenter.Value!.Name.ToDalamudString().TextValue);
         }
     }
 
@@ -229,7 +230,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 PetModel.Ifrit => GetDefaultScale(PetModel.Ifrit, PetSize.SmallModelScale),
                 PetModel.Titan => GetDefaultScale(PetModel.Titan, PetSize.SmallModelScale),
                 PetModel.Garuda => GetDefaultScale(PetModel.Garuda, PetSize.SmallModelScale),
-                _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
             };
         }
         return pet switch
@@ -255,7 +256,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             PetModel.Ifrit => GetDefaultScale(PetModel.Ifrit, PetScale.vanillaPetSizeMap[PetModel.Ifrit]),
             PetModel.Titan => GetDefaultScale(PetModel.Titan, PetScale.vanillaPetSizeMap[PetModel.Titan]),
             PetModel.Garuda => GetDefaultScale(PetModel.Garuda, PetScale.vanillaPetSizeMap[PetModel.Garuda]),
-            _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+            _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
         };
     }
 
@@ -284,7 +285,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             PetModel.Ifrit => 4f,
             PetModel.Titan => 4f,
             PetModel.Bahamut => 8f,
-            _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+            _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
         };
     }
 
@@ -303,7 +304,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                     or PetModel.Titan
                     or PetModel.Garuda
                     => 0.33f,
-                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
                 };
             }
             case PetSize.MediumModelScale:
@@ -317,7 +318,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                     or PetModel.Titan
                     or PetModel.Garuda
                     => 0.66f,
-                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
                 };
             }
             case PetSize.LargeModelScale:
@@ -331,7 +332,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                     or PetModel.Titan
                     or PetModel.Garuda
                     => 1f,
-                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString())
+                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
                 };
             }
             default:
@@ -351,7 +352,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     continue;
                 }
-                if (!PetScale.petModelSet.Contains((PetModel)pet->ModelCharaId))
+                if (!PetScale.petModelSet.Contains((PetModel)pet->ModelContainer.ModelCharaId))
                 {
                     continue;
                 }
@@ -359,13 +360,13 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     continue;
                 }
-                if (removedPlayer.Value.PetID is PetModel.AllPets && PetScale.vanillaPetSizeMap.TryGetValue((PetModel)pet->ModelCharaId, out var size))
+                if (removedPlayer.Value.PetID is PetModel.AllPets && PetScale.vanillaPetSizeMap.TryGetValue((PetModel)pet->ModelContainer.ModelCharaId, out var size))
                 {
-                    SetScale(pet, GetDefaultScale((PetModel)pet->ModelCharaId, size));
+                    SetScale(pet, GetDefaultScale((PetModel)pet->ModelContainer.ModelCharaId, size));
                     removalQueue.Remove(removedPlayer);
                     continue;
                 }
-                if ((PetModel)pet->ModelCharaId != removedPlayer.Value.PetID)
+                if ((PetModel)pet->ModelContainer.ModelCharaId != removedPlayer.Value.PetID)
                 {
                     continue;
                 }
@@ -375,7 +376,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                     removalQueue.Remove(removedPlayer);
                     continue;
                 }
-                SetScale(pet, GetDefaultScale(removedPlayer.Value.PetID, PetScale.vanillaPetSizeMap[(PetModel)pet->ModelCharaId]));
+                SetScale(pet, GetDefaultScale(removedPlayer.Value.PetID, PetScale.vanillaPetSizeMap[(PetModel)pet->ModelContainer.ModelCharaId]));
                 removalQueue.Remove(removedPlayer);
             }
         }
@@ -383,7 +384,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
 
     public static unsafe bool ResetFairy(BattleChara* fairy, float size)
     {
-        var fairyModel = (PetModel)fairy->ModelCharaId;
+        var fairyModel = (PetModel)fairy->ModelContainer.ModelCharaId;
         if (!PetScale.petModelSet.Contains(fairyModel) || fairyModel is not PetModel.Eos and not PetModel.Selene)
         {
             return false;
@@ -415,7 +416,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             {
                 continue;
             }
-            var petModel = (PetModel)pet->ModelCharaId;
+            var petModel = (PetModel)pet->ModelContainer.ModelCharaId;
             if (!PetScale.petModelSet.Contains(petModel))
             {
                 continue;
@@ -482,7 +483,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         var tempEnumerable = petList.Where(item => item.CharacterName.Equals(PetScale.Others, StringComparison.Ordinal));
         if (customSize)
         {
-            if (tempEnumerable.Count() is not 0)
+            if (tempEnumerable.Any())
             {
                 var tempList = tempEnumerable.ToList();
                 tempList.AddRange([.. petList
@@ -504,7 +505,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             }
             return;
         }
-        if (tempEnumerable.Count() is not 0)
+        if (tempEnumerable.Any())
         {
             var tempList = tempEnumerable.ToList();
             tempList.AddRange([.. petList.Except(tempList).OrderBy(item => item.CharacterName, StringComparer.Ordinal).ThenBy(item => item.PetID.ToString(), StringComparer.Ordinal)]);
@@ -519,4 +520,10 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             petList = orderedList;
         }
     }
+}
+
+public static class ReadOnlySeStringExtension
+{
+    public static string GetText(this ReadOnlySeString sestring)
+        => sestring.ExtractText();
 }
