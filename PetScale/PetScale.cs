@@ -247,7 +247,7 @@ public sealed class PetScale : IDalamudPlugin
 #if DEBUG
         DevWindowThings();
 #endif
-        if (clientState is not { LocalPlayer: { } player })
+        if (clientState is not { LocalPlayer: { } player } || !clientState.IsLoggedIn)
         {
             return;
         }
