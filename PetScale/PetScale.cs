@@ -41,6 +41,7 @@ public sealed class PetScale : IDalamudPlugin
 
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
     private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = [];
+    private readonly Dictionary<int, (uint characterEiD, uint petEiD, bool petSet)> secondaryActivePetDictionary = [];
     private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new(StringComparer.OrdinalIgnoreCase);
     public static IDictionary<PetModel, PetSize> vanillaPetSizeMap { get; } = new Dictionary<PetModel, PetSize>();
     private readonly Stopwatch stopwatch = new();
@@ -148,18 +149,17 @@ public sealed class PetScale : IDalamudPlugin
 
     private void SetStopwatch()
     {
-        playerName = clientState.LocalPlayer?.Name.TextValue;
         if (clientState.IsLoggedIn)
         {
+            playerName = clientState.LocalPlayer?.Name.TextValue;
             Utilities.GetPetSizes(gameConfig, vanillaPetSizeMap);
             stopwatch.Start();
+            return;
         }
-        else
-        {
-            config.HomeWorld = 0;
-            QueueOnlyExistingData();
-            stopwatch.Stop();
-        }
+        secondaryActivePetDictionary.Clear();
+        config.HomeWorld = 0;
+        QueueOnlyExistingData();
+        stopwatch.Stop();
     }
 
     private void TerritoryChanged(ushort obj)
@@ -272,7 +272,7 @@ public sealed class PetScale : IDalamudPlugin
         if (stopwatch.Elapsed.TotalMilliseconds >= dictionaryExpirationTime)
         {
             stopwatch.Restart();
-            activePetDictionary.Clear();
+            secondaryActivePetDictionary.Clear();
             PopulateDictionary();
             return;
         }
@@ -295,8 +295,8 @@ public sealed class PetScale : IDalamudPlugin
             var petName = chara.Value->NameString;
             if (!petModelDic.ContainsKey(petName))
             {
-                PetModel? petModel = petModelSet.Contains((PetModel)chara.Value->ModelCharaId) ? (PetModel)chara.Value->ModelCharaId : null;
-                petModelDic.Add(petName, (petModel, chara.Value->ModelCharaId, Vector3.Zero, Vector3.Zero));
+                PetModel? petModel = petModelSet.Contains((PetModel)chara.Value->ModelContainer.ModelCharaId) ? (PetModel)chara.Value->ModelContainer.ModelCharaId : null;
+                petModelDic.Add(petName, (petModel, chara.Value->ModelContainer.ModelCharaId, Vector3.Zero, Vector3.Zero));
             }
 #endif
             if (!petModelSet.Contains((PetModel)chara.Value->ModelContainer.ModelCharaId))
@@ -322,20 +322,30 @@ public sealed class PetScale : IDalamudPlugin
                 }
             }
         }
+        // Is there any point in doing this vs just eating the cost of going through the whole battlechara on every parse?
+        // Does this also really solve the core issue of storing pointers? I guess they never actually get accessed outside of the initial frame,
+        // and seems like a more desireable in-place replacement solution unless proven ineffective.
+        foreach (var entry in activePetDictionary)
+        {
+            var petEID = entry.Key.Value->EntityId;
+            var charEID = entry.Value.character.Value->EntityId;
+            var hash = petEID.GetHashCode() ^ ((charEID.GetHashCode() << 16) | (charEID.GetHashCode() >> (32 - 16)));
+            secondaryActivePetDictionary.TryAdd(hash, (entry.Value.character.Value->EntityId, entry.Key.Value->EntityId, false));
+        }
+        activePetDictionary.Clear();
     }
 
     private unsafe void ParseDictionary(uint playerEntityId)
     {
         var allPets = config.PetData.Where(userData => userData.PetID is PetModel.AllPets).ToList();
-        foreach (var pair in activePetDictionary)
+        foreach(var entry in secondaryActivePetDictionary)
         {
-            if (pair.Value.petSet)
+            if (entry.Value.petSet)
             {
                 continue;
             }
-
-            var pet = pair.Key.Value;
-            var character = pair.Value.character.Value;
+            var pet = CharacterManager.Instance()->LookupBattleCharaByEntityId(entry.Value.petEiD);
+            var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(entry.Value.characterEiD);
             if (pet is null || character is null)
             {
                 continue;
@@ -348,16 +358,6 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-#if DEBUG
-            DevWindow.Print(pet->NameString + ": " + pet->ModelCharaId + " owned by " + character->NameString + " size " + pet->Scale);
-            var drawModel = pet->Character.GetDrawObject();
-            if (drawModel is not null && petModelDic.TryGetValue(pet->NameString, out var current))
-            {
-                current.scale = drawModel->Scale;
-                current.scale2 = new Vector3(pet->Scale, pet->ModelScale, pet->VfxScale);
-                petModelDic[pet->NameString] = current;
-            }
-#endif
             if (queueFairyForRemoval)
             {
                 CheckFairies(pet);
@@ -372,10 +372,10 @@ public sealed class PetScale : IDalamudPlugin
                     case PetState.All:
                     {
                         Utilities.SetScale(pet, 1.5f);
-                        activePetDictionary[pair.Key] = (pair.Value.character, true);
-                        if (!fairies.Contains(pair.Key))
+                        secondaryActivePetDictionary[entry.Key] = (entry.Value.characterEiD, entry.Value.petEiD, true);
+                        if (!fairies.Contains(pet))
                         {
-                            fairies.Add(pair.Key);
+                            fairies.Add(pet);
                         }
                         if (config.PetData
                             .Any(item => item.PetID == (PetModel)pet->ModelContainer.ModelCharaId &&
@@ -391,14 +391,16 @@ public sealed class PetScale : IDalamudPlugin
                         break;
                 }
             }
-            if (ParseStruct(pet, character, pet->ModelContainer.ModelCharaId, character->EntityId == playerEntityId, allPets))
+            if (ParseStruct(pet, &character->Character, pet->ModelContainer.ModelCharaId, character->EntityId == playerEntityId, allPets))
             {
-                activePetDictionary[pair.Key] = (pair.Value.character, true);
+                secondaryActivePetDictionary[entry.Key] = (entry.Value.characterEiD, entry.Value.petEiD, true);
             }
         }
         if (removedPlayers.Count > 0)
         {
-            Utilities.CheckPetRemoval(removedPlayers, activePetDictionary);
+            var tempPetDictionary = secondaryActivePetDictionary
+                .ToDictionary(entry => entry.Key, entry => (entry.Value.characterEiD, entry.Value.petEiD));
+            Utilities.CheckPetRemoval(removedPlayers, tempPetDictionary);
             removedPlayers.Clear();
         }
     }
@@ -587,12 +589,22 @@ public sealed class PetScale : IDalamudPlugin
     private unsafe void DevWindowThings()
     {
         DevWindow.IsOpen = true;
-        DevWindow.Print("Actor pair count: " + activePetDictionary.Count.ToString());
+        DevWindow.Print("Actor pair count: " + secondaryActivePetDictionary.Count.ToString());
+        var tempDisplay = secondaryActivePetDictionary;
+        foreach (var kvp in tempDisplay)
+        {
+            var charaId = kvp.Value.characterEiD;
+            var petId = kvp.Value.petEiD;
+            var charaName = CharacterManager.Instance()->LookupBattleCharaByEntityId(charaId);
+            var petName = CharacterManager.Instance()->LookupBattleCharaByEntityId(petId);
+            DevWindow.Print($"Pet: {petName->NameString} - Character: {charaName->NameString} - Scale: {petName->Scale} -  Set: {kvp.Value.petSet}");
+        }
+        /*DevWindow.Print("Actor pair count: " + activePetDictionary.Count.ToString());
         foreach (var entry in petModelDic)
         {
             var petModel = entry.Value.Item1 is not null ? "True - " + entry.Value.Item1.ToString() : "False";
             DevWindow.Print($"Pet: {entry.Key} - ModelCharaId: {entry.Value.Item2} - Scale: {entry.Value.scale} / {entry.Value.scale2} - IsPetModel: {petModel}");
-        }
+        }*/
     }
 #endif
 
@@ -614,9 +626,10 @@ public sealed class PetScale : IDalamudPlugin
         {
             return;
         }
-        activePetDictionary.Clear();
+        secondaryActivePetDictionary.Clear();
         PopulateDictionary();
-        Utilities.ResetPets(activePetDictionary, config.PetData);
+        Utilities.ResetPets(secondaryActivePetDictionary, config.PetData);
+        secondaryActivePetDictionary.Clear();
     }
 
     public void Dispose()

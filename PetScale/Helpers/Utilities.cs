@@ -340,14 +340,14 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         }
     }
 
-    public static unsafe void CheckPetRemoval(IDictionary<ulong, PetStruct> removalQueue, IDictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePlayers)
+    public static unsafe void CheckPetRemoval(IDictionary<ulong, PetStruct> removalQueue, IDictionary<int, (uint characterEiD, uint petEiD)> activePlayers)
     {
         foreach (var removedPlayer in removalQueue)
         {
-            foreach (var activePlayer in activePlayers)
+            foreach (var activePlayer in activePlayers.Values)
             {
-                var pet = activePlayer.Key.Value;
-                var character = activePlayer.Value.character.Value;
+                var pet = CharacterManager.Instance()->LookupBattleCharaByEntityId(activePlayer.petEiD);
+                var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(activePlayer.characterEiD);
                 if (pet is null || character is null)
                 {
                     continue;
@@ -406,12 +406,12 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         return true;
     }
 
-    public static unsafe void ResetPets(IDictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePets, IList<PetStruct> userData)
+    public static unsafe void ResetPets(IDictionary<int, (uint characterEiD, uint petEiD, bool petSet)> activePets, IList<PetStruct> userData)
     {
-        foreach (var pair in activePets)
+        foreach (var pair in activePets.Values)
         {
-            var pet = pair.Key.Value;
-            var character = pair.Value.character.Value;
+            var pet = CharacterManager.Instance()->LookupBattleCharaByEntityId(pair.petEiD);
+            var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(pair.characterEiD);
             if (pet is null || character is null)
             {
                 continue;
