@@ -338,7 +338,7 @@ public sealed class PetScale : IDalamudPlugin
     private unsafe void ParseDictionary(uint playerEntityId)
     {
         var allPets = config.PetData.Where(userData => userData.PetID is PetModel.AllPets).ToList();
-        foreach(var entry in secondaryActivePetDictionary)
+        foreach (var entry in secondaryActivePetDictionary)
         {
             if (entry.Value.petSet)
             {
