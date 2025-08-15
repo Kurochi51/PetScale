@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-using ImGuiNET;
 using Dalamud.Plugin;
 using Dalamud.Utility;
 using Dalamud.Interface;
 using Dalamud.Plugin.Services;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 using Dalamud.Interface.Components;
@@ -282,7 +282,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TableSetupColumn("PetSize", ImGuiTableColumnFlags.WidthFixed, sizesWidth);
         ImGui.TableSetupColumn("DeleteButton", ImGuiTableColumnFlags.WidthFixed, ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).X);
         var itemRemoved = false;
-        var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
+        var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper());
         clipper.Begin(clipperCount, ImGuiUtils.IconButtonSize(iconFont, deleteButtonIcon).Y + (ImGui.GetStyle().FramePadding.Y * 2));
 
         var clipperBreak = false;
@@ -411,7 +411,7 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         var itemSelected = false;
         result = preview;
-        var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper_ImGuiListClipper());
+        var clipper = new ImGuiListClipperPtr(ImGuiNative.ImGuiListClipper());
         clipper.Begin(itemCount, ImGui.GetTextLineHeightWithSpacing());
 
         var clipperBreak = false;
