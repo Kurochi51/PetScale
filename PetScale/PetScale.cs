@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Numerics;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Frozen;
@@ -327,6 +328,10 @@ public sealed class PetScale : IDalamudPlugin
         // and seems like a more desireable in-place replacement solution unless proven ineffective.
         foreach (var entry in activePetDictionary)
         {
+            if (entry.Key.Value is null || entry.Value.character.Value is null)
+            {
+                continue;
+            }
             var petEID = entry.Key.Value->EntityId;
             var charEID = entry.Value.character.Value->EntityId;
             var hash = petEID.GetHashCode() ^ ((charEID.GetHashCode() << 16) | (charEID.GetHashCode() >> (32 - 16)));
@@ -597,6 +602,10 @@ public sealed class PetScale : IDalamudPlugin
             var petId = kvp.Value.petEiD;
             var charaName = CharacterManager.Instance()->LookupBattleCharaByEntityId(charaId);
             var petName = CharacterManager.Instance()->LookupBattleCharaByEntityId(petId);
+            if (charaName is null || petName is null)
+            {
+                continue;
+            }
             DevWindow.Print($"Pet: {petName->NameString} - Character: {charaName->NameString} - Scale: {petName->Scale} -  Set: {kvp.Value.petSet}");
         }
         /*DevWindow.Print("Actor pair count: " + activePetDictionary.Count.ToString());
