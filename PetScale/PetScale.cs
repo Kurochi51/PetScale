@@ -38,6 +38,7 @@ public sealed class PetScale : IDalamudPlugin
     private readonly IPluginLog log;
     private readonly Utilities utilities;
     private readonly IGameConfig gameConfig;
+    private readonly IPlayerState playerState;
     public readonly IClientState clientState;
 
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
@@ -87,9 +88,9 @@ public sealed class PetScale : IDalamudPlugin
     internal List<Pointer<BattleChara>> fairies { get; } = [];
     private ConfigWindow ConfigWindow { get; init; }
 #if DEBUG
+    private readonly IObjectTable objectTable;
     private DevWindow DevWindow { get; init; }
     private readonly Dictionary<string, (PetModel?, int, Vector3 scale, Vector3 scale2)> petModelDic = [];
-    private readonly IObjectTable objectTable;
 #endif
 
     private unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
@@ -103,6 +104,7 @@ public sealed class PetScale : IDalamudPlugin
         IDataManager _dataManger,
         INotificationManager _notificationManager,
         IObjectTable _objectTable,
+        IPlayerState _playerState,
         IGameConfig _gameConfig)
     {
         pluginInterface = _pluginInterface;
@@ -110,6 +112,7 @@ public sealed class PetScale : IDalamudPlugin
         framework = _framework;
         log = _log;
         clientState = _clientState;
+        playerState = _playerState;
         gameConfig = _gameConfig;
         config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         utilities = new Utilities(_dataManger, log, clientState.ClientLanguage);
@@ -152,7 +155,7 @@ public sealed class PetScale : IDalamudPlugin
     {
         if (clientState.IsLoggedIn)
         {
-            playerName = clientState.LocalPlayer?.Name.TextValue;
+            playerName = playerState.IsLoaded ? playerState.CharacterName : null;
             Utilities.GetPetSizes(gameConfig, vanillaPetSizeMap);
             stopwatch.Start();
             return;
@@ -248,24 +251,24 @@ public sealed class PetScale : IDalamudPlugin
 #if DEBUG
         DevWindowThings();
 #endif
-        if (clientState is not { LocalPlayer: { } player } || !clientState.IsLoggedIn)
+        if (!playerState.IsLoaded || !clientState.IsLoggedIn)
         {
             return;
         }
         if (config.HomeWorld is 0)
         {
-            config.HomeWorld = (ushort)player.HomeWorld.Value.RowId;
+            config.HomeWorld = (ushort)playerState.HomeWorld.Value.RowId;
         }
         unsafe
         {
             if (requestedCache)
             {
-                playerName ??= player.Name.TextValue;
-                RefreshCache(playerName, clientState.LocalContentId, player.EntityId, config.HomeWorld);
+                playerName ??= playerState.CharacterName;
+                RefreshCache(playerName, playerState.ContentId, playerState.EntityId, config.HomeWorld);
                 requestedCache = false;
             }
         }
-        CheckDictionary(player.EntityId);
+        CheckDictionary(playerState.EntityId);
     }
 
     private void CheckDictionary(uint playerEntityId)

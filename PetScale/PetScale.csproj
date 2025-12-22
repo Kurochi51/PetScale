@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Dalamud.NET.Sdk/14.0.1">
     <PropertyGroup>
         <Authors></Authors>
         <Company></Company>
-        <Version>2.0.4.0</Version>
+        <Version>2.0.5.0</Version>
         <Description>Customize pet scale.</Description>
         <Copyright></Copyright>
         <PackageProjectUrl>https://github.com/Kurochi51/PetScale</PackageProjectUrl>
@@ -12,7 +12,7 @@
     </PropertyGroup>
 
     <PropertyGroup>
-        <TargetFramework>net9.0-windows</TargetFramework>
+        <TargetFramework>net10.0-windows</TargetFramework>
         <Platforms>x64</Platforms>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
@@ -30,56 +30,51 @@
         </ContentWithTargetPath>
     </ItemGroup>
 
-    <!--D:\yes\Dalamud\bin\Release\-->
-    <!--$(appdata)\XIVLauncher\addon\Hooks\dev\-->
-    <PropertyGroup>
-        <DalamudLibPath Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(appdata)\XIVLauncher\addon\Hooks\dev\</DalamudLibPath>
-        <DalamudLibPath Condition="$([MSBuild]::IsOSPlatform('Linux'))">$(HOME)/.xlcore/dalamud/Hooks/dev/</DalamudLibPath>
-        <DalamudLibPath Condition="$([MSBuild]::IsOSPlatform('OSX'))">$(HOME)/Library/Application Support/XIV on Mac/dalamud/Hooks/dev/</DalamudLibPath>
-        <DalamudLibPath Condition="$(DALAMUD_HOME) != ''">$(DALAMUD_HOME)/</DalamudLibPath>
-    </PropertyGroup>
-
     <ItemGroup>
-        <PackageReference Include="DalamudPackager" Version="13.0.0" />
-        <PackageReference Include="Meziantou.Analyzer" Version="2.0.212">
+        <PackageReference Include="Meziantou.Analyzer" Version="2.0.264">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+    </ItemGroup>
+
+    <!--
+    <ItemGroup>
+        <Reference Include="Dalamud">
+            <HintPath>D:\yes\Dalamud\bin\Release\Dalamud.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
         <Reference Include="FFXIVClientStructs">
-            <HintPath>$(DalamudLibPath)FFXIVClientStructs.dll</HintPath>
+            <HintPath>>D:\yes\Dalamud\bin\Release\FFXIVClientStructs.dll</HintPath>
             <Private>false</Private>
         </Reference>
         <Reference Include="InteropGenerator.Runtime">
-          <HintPath>$(DalamudLibPath)InteropGenerator.Runtime.dll</HintPath>
+            <HintPath>>D:\yes\Dalamud\bin\Release\InteropGenerator.Runtime.dll</HintPath>
             <Private>false</Private>
         </Reference>
         <Reference Include="Newtonsoft.Json">
-            <HintPath>$(DalamudLibPath)Newtonsoft.Json.dll</HintPath>
-            <Private>false</Private>
-        </Reference>
-        <Reference Include="Dalamud">
-            <HintPath>$(DalamudLibPath)Dalamud.dll</HintPath>
+            <HintPath>>D:\yes\Dalamud\bin\Release\Newtonsoft.Json.dll</HintPath>
             <Private>false</Private>
         </Reference>
         <Reference Include="Dalamud.Bindings.ImGui">
-            <HintPath>$(DalamudLibPath)Dalamud.Bindings.ImGui.dll</HintPath>
+            <HintPath>>D:\yes\Dalamud\bin\Release\Dalamud.Bindings.ImGui.dll</HintPath>
             <Private>false</Private>
         </Reference>
         <Reference Include="Dalamud.Bindings.ImPlot">
-            <HintPath>$(DalamudLibPath)Dalamud.Bindings.ImPlot.dll</HintPath>
+            <HintPath>>D:\yes\Dalamud\bin\Release\Dalamud.Bindings.ImPlot.dll</HintPath>
             <Private>false</Private>
         </Reference>
         <Reference Include="Dalamud.Bindings.ImGuizmo">
-            <HintPath>$(DalamudLibPath)Dalamud.Bindings.ImGuizmo.dll</HintPath>
+            <HintPath>>D:\yes\Dalamud\bin\Release\Dalamud.Bindings.ImGuizmo.dll</HintPath>
             <Private>false</Private>
         </Reference>
         <Reference Include="Lumina">
-            <HintPath>$(DalamudLibPath)Lumina.dll</HintPath>
+            <HintPath>>D:\yes\Dalamud\bin\Release\Lumina.dll</HintPath>
             <Private>false</Private>
         </Reference>
         <Reference Include="Lumina.Excel">
-            <HintPath>$(DalamudLibPath)Lumina.Excel.dll</HintPath>
+            <HintPath>>D:\yes\Dalamud\bin\Release\Lumina.Excel.dll</HintPath>
             <Private>false</Private>
         </Reference>
     </ItemGroup>
+    -->
 </Project>
