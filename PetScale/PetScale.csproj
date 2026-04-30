@@ -37,10 +37,6 @@
         </PackageReference>
     </ItemGroup>
 
-    <ItemGroup>
-      <PackageReference Update="DotNet.ReproducibleBuilds" Version="2.0.2" />
-    </ItemGroup>
-
     <!--
     <ItemGroup>
         <Reference Include="Dalamud">
