@@ -166,7 +166,7 @@ public sealed class PetScale : IDalamudPlugin
         stopwatch.Stop();
     }
 
-    private void TerritoryChanged(ushort obj)
+    private void TerritoryChanged(uint obj)
     {
         stopwatch.Restart();
     }
