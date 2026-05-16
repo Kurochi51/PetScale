@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Numerics;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Frozen;
@@ -21,6 +20,8 @@ using PetScale.Structs;
 using PetScale.Helpers;
 using PetScale.Windows;
 using PetScale.Enums;
+using PetScale.IPC;
+using System.Collections.Concurrent;
 
 namespace PetScale;
 
@@ -40,6 +41,7 @@ public sealed class PetScale : IDalamudPlugin
     private readonly IGameConfig gameConfig;
     private readonly IPlayerState playerState;
     public readonly IClientState clientState;
+    private readonly IPCProvider ipc;
 
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
     private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = [];
@@ -94,7 +96,7 @@ public sealed class PetScale : IDalamudPlugin
 #endif
 
     private unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
-    private string? playerName;
+    public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcPlayers = [];
 
     public PetScale(IDalamudPluginInterface _pluginInterface,
         ICommandManager _commandManager,
@@ -116,6 +118,7 @@ public sealed class PetScale : IDalamudPlugin
         gameConfig = _gameConfig;
         config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         utilities = new Utilities(_dataManger, log, clientState.ClientLanguage);
+        ipc = new IPCProvider(config, playerState, pluginInterface, this, log);
 
         ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager, utilities);
 #if DEBUG
@@ -155,7 +158,6 @@ public sealed class PetScale : IDalamudPlugin
     {
         if (clientState.IsLoggedIn)
         {
-            playerName = playerState.IsLoaded ? playerState.CharacterName : null;
             Utilities.GetPetSizes(gameConfig, vanillaPetSizeMap);
             stopwatch.Start();
             return;
@@ -263,8 +265,7 @@ public sealed class PetScale : IDalamudPlugin
         {
             if (requestedCache)
             {
-                playerName ??= playerState.CharacterName;
-                RefreshCache(playerName, playerState.ContentId, playerState.EntityId, config.HomeWorld);
+                RefreshCache(playerState.CharacterName, playerState.ContentId, playerState.EntityId, config.HomeWorld);
                 requestedCache = false;
             }
         }
@@ -343,6 +344,31 @@ public sealed class PetScale : IDalamudPlugin
         activePetDictionary.Clear();
     }
 
+    private unsafe void AssignIPCPlayers(Pointer<BattleChara> character, Pointer<BattleChara> pet)
+    {
+        if (character.Value is null || pet.Value is null)
+        {
+            return;
+        }
+        if (pet.Value->NameString.IsNullOrWhitespace())
+        {
+            return;
+        }
+        var entries = ipcPlayers[character.Value->EntityId];
+        foreach (var entry in entries)
+        {
+            if (character.Value->ContentId != entry.ContentId)
+            {
+                continue;
+            }
+            if ((PetModel)pet.Value->ModelContainer.ModelCharaId != entry.PetID)
+            {
+                continue;
+            }
+            SetScale(pet, entry, pet.Value->NameString);
+        }
+    }
+
     private unsafe void ParseDictionary(uint playerEntityId)
     {
         var allPets = config.PetData.Where(userData => userData.PetID is PetModel.AllPets).ToList();
@@ -369,6 +395,11 @@ public sealed class PetScale : IDalamudPlugin
             if (queueFairyForRemoval)
             {
                 CheckFairies(pet);
+            }
+            if (ipcPlayers.ContainsKey(character->EntityId))
+            {
+                AssignIPCPlayers(character, pet);
+                continue;
             }
 
             if (config.FairyState is not PetState.Off && (PetModel)pet->ModelContainer.ModelCharaId is PetModel.Eos or PetModel.Selene)
@@ -533,9 +564,9 @@ public sealed class PetScale : IDalamudPlugin
         utilities.CachePlayerList(entityId, config.HomeWorld, players, BattleCharaSpan);
     }
 
-    private unsafe bool SetScale(BattleChara* pet, in PetStruct userData, string petName)
+    private unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
     {
-        if (presetPetModelMap.ContainsValue((PetModel)pet->ModelContainer.ModelCharaId))
+        if (presetPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
         {
             var scale = userData.PetSize switch
             {
@@ -648,6 +679,7 @@ public sealed class PetScale : IDalamudPlugin
     {
         stopwatch.Stop();
         players.Clear();
+        ipc.Dispose();
 
         framework.Update -= OnFrameworkUpdate;
         clientState.Login -= SetStopwatch;

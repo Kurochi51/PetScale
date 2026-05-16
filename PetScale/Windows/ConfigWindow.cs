@@ -22,6 +22,7 @@ using FFXIVClientStructs.FFXIV.Client.Graphics.Kernel;
 using PetScale.Helpers;
 using PetScale.Structs;
 using PetScale.Enums;
+using PetScale.IPC;
 
 namespace PetScale.Windows;
 
@@ -108,6 +109,7 @@ public sealed class ConfigWindow : Window, IDisposable
         sizeSelection = DefaultSizeSelection;
         world = DefaultWorldSelection;
         comboFilter.Clear();
+        IPCProvider.attemptDataRefresh?.Invoke();
     }
 
     public override void Draw()
