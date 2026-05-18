@@ -1,27 +1,27 @@
-using System;
-using System.Linq;
-using System.Diagnostics;
-using System.Threading.Tasks;
-using System.Collections.Frozen;
-using System.Collections.Generic;
-
-using Dalamud.Plugin;
-using Dalamud.Utility;
 using Dalamud.Game.Command;
-using Dalamud.Plugin.Services;
 using Dalamud.Interface.Windowing;
-using Lumina.Excel.Sheets;
-using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
-using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
+using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
+using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.Interop;
-using PetScale.Structs;
-using PetScale.Helpers;
-using PetScale.Windows;
+using Lumina.Excel.Sheets;
+using Lumina.Excel.Sheets.Experimental;
 using PetScale.Enums;
+using PetScale.Helpers;
 using PetScale.IPC;
+using PetScale.Structs;
+using PetScale.Windows;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Threading.Tasks;
+using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
+using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
 
 namespace PetScale;
 
@@ -344,7 +344,7 @@ public sealed class PetScale : IDalamudPlugin
         activePetDictionary.Clear();
     }
 
-    private unsafe void AssignIPCPlayers(Pointer<BattleChara> character, Pointer<BattleChara> pet)
+    private unsafe void AssignIPCPlayers(int index, Pointer<BattleChara> character, Pointer<BattleChara> pet)
     {
         if (character.Value is null || pet.Value is null)
         {
@@ -365,7 +365,93 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            SetScale(pet, entry, pet.Value->NameString);
+            if (ipc.removedIPCPlayers.Contains(character.Value->EntityId))
+            {
+                continue;
+            }
+            if (SetScale(pet, entry, pet.Value->NameString))
+            {
+                secondaryActivePetDictionary[index] = (character.Value->EntityId, pet.Value->EntityId, true);
+            }
+        }
+    }
+
+    private unsafe void RemoveIPCPlayers()
+    {
+        // If 0 is in list, all ipc entries need to be removed if present
+        if (ipc.removedIPCPlayers.Any(eid => eid == 0))
+        {
+            foreach (var ipcPlayer in ipcPlayers)
+            {
+                foreach (var player in secondaryActivePetDictionary.Values)
+                {
+                    if (player.characterEiD != ipcPlayer.Key || !player.petSet)
+                    {
+                        continue;
+                    }
+                    var removedPet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.petEiD);
+                    var petOwner = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.characterEiD);
+                    if (removedPet is null || removedPet->NameString.IsNullOrWhitespace() || petOwner is null)
+                    {
+                        continue;
+                    }
+                    foreach (var petEntry in ipcPlayer.Value)
+                    {
+                        if (petEntry.ContentId != petOwner->ContentId)
+                        {
+                            continue;
+                        }
+                        if ((PetModel)removedPet->ModelContainer.ModelCharaId != petEntry.PetID)
+                        {
+                            continue;
+                        }
+                        Utilities.SetScale(removedPet,
+                            Utilities.GetDefaultScale((PetModel)removedPet->ModelContainer.ModelCharaId,
+                            vanillaPetSizeMap[(PetModel)removedPet->ModelContainer.ModelCharaId]));
+                    }
+                }
+            }
+            ipc.removedIPCPlayers.Clear();
+            ipcPlayers.Clear();
+            return;
+        }
+        for (var i = 0; i < ipc.removedIPCPlayers.Count; i++)
+        {
+            ipc.removedIPCPlayers.TryDequeue(out var removedPlayer);
+            var ipcPlayerData = ipcPlayers[removedPlayer];
+            var ipcPlayerRemoved = false;
+            foreach (var player in secondaryActivePetDictionary.Values)
+            {
+                if (player.characterEiD != removedPlayer || !player.petSet)
+                {
+                    continue;
+                }
+                var removedPet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.petEiD);
+                var petOwner = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.characterEiD);
+                if (removedPet is null || petOwner is null || removedPet->NameString.IsNullOrWhitespace())
+                {
+                    continue;
+                }
+                foreach (var pet in ipcPlayerData)
+                {
+                    if (pet.ContentId != petOwner->ContentId)
+                    {
+                        continue;
+                    }
+                    if ((PetModel)removedPet->ModelContainer.ModelCharaId != pet.PetID)
+                    {
+                        continue;
+                    }
+                    Utilities.SetScale(removedPet,
+                            Utilities.GetDefaultScale((PetModel)removedPet->ModelContainer.ModelCharaId,
+                            vanillaPetSizeMap[(PetModel)removedPet->ModelContainer.ModelCharaId]));
+                    ipcPlayerRemoved = true;
+                }
+            }
+            if (ipcPlayerRemoved)
+            {
+                ipcPlayers.Remove(removedPlayer, out _);
+            }
         }
     }
 
@@ -396,11 +482,6 @@ public sealed class PetScale : IDalamudPlugin
             {
                 CheckFairies(pet);
             }
-            if (ipcPlayers.ContainsKey(character->EntityId))
-            {
-                AssignIPCPlayers(character, pet);
-                continue;
-            }
 
             if (config.FairyState is not PetState.Off && (PetModel)pet->ModelContainer.ModelCharaId is PetModel.Eos or PetModel.Selene)
             {
@@ -430,10 +511,21 @@ public sealed class PetScale : IDalamudPlugin
                         break;
                 }
             }
+
+            if (ipcPlayers.ContainsKey(character->EntityId))
+            {
+                AssignIPCPlayers(entry.Key, character, pet);
+                continue;
+            }
+
             if (ParseStruct(pet, &character->Character, pet->ModelContainer.ModelCharaId, character->EntityId == playerEntityId, allPets))
             {
                 secondaryActivePetDictionary[entry.Key] = (entry.Value.characterEiD, entry.Value.petEiD, true);
             }
+        }
+        if (!ipc.removedIPCPlayers.IsEmpty)
+        {
+            RemoveIPCPlayers();
         }
         if (removedPlayers.Count > 0)
         {

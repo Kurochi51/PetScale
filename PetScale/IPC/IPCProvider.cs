@@ -1,41 +1,41 @@
-using Dalamud.Plugin;
-using Dalamud.Plugin.Ipc;
-using Dalamud.Plugin.Services;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
-using PetScale.Structs;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
-using System.Text;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+
+using Dalamud.Plugin.Services;
+using Dalamud.Plugin.Ipc;
+using Dalamud.Plugin;
+using PetScale.Structs;
 
 namespace PetScale.IPC;
 
 public class IPCProvider
 {
     public const string APINamespace = "PetScale";
-    public IReadOnlyList<PetStruct> localPlayerData = [];
+    internal IReadOnlyList<PetStruct> localPlayerData = [];
     private readonly Configuration config;
     private readonly IPlayerState playerState;
     internal static Action? attemptDataRefresh;
     private readonly PetScale plugin;
     private readonly IPluginLog log;
+    internal readonly ConcurrentQueue<uint> removedIPCPlayers = [];
 
-    
+
     /// <summary>
     /// Collects the local user's configured pets, to be distributed alongside other character data upon sync via <see cref="setPlayerData"/>.
     /// </summary>
-    private readonly ICallGateProvider<IReadOnlyList<PetStruct>> getPlayerData;
+    public readonly ICallGateProvider<IReadOnlyList<PetStruct>> getPlayerData;
 
     /// <summary>
     /// Adds newly synced target to the list of ipc targets to scale, needs the data gathered from <see cref="getPlayerData"/>.
     /// </summary>
-    private readonly ICallGateProvider<uint, IReadOnlyList<PetStruct>, object?> setPlayerData;
+    public readonly ICallGateProvider<uint, IReadOnlyList<PetStruct>, object?> setPlayerData;
 
     /// <summary>
     /// Call with 0 to remove all, whenever the local user gets disconnected from sync, otherwise specific synced user that isn't received by the local user
     /// </summary>
-    private readonly ICallGateProvider<uint, object?> removePlayerData;
+    public readonly ICallGateProvider<uint, object?> removePlayerData;
 
     public IPCProvider(Configuration _config, IPlayerState _localPlayer, IDalamudPluginInterface _pluginInterface, PetScale _plugin, IPluginLog _log)
     {
@@ -60,13 +60,13 @@ public class IPCProvider
             localPlayerData = [.. config.PetData.Where(player => player.ContentId == playerState.ContentId)];
         }
     }
-    public IReadOnlyList<PetStruct> GetPlayerData()
+    internal IReadOnlyList<PetStruct> GetPlayerData()
     {
         RefreshPlayerData();
         return localPlayerData;
     }
 
-    public void SetPlayerData(uint playerEntityId, IReadOnlyList<PetStruct> playerData)
+    internal void SetPlayerData(uint playerEntityId, IReadOnlyList<PetStruct> playerData)
     {
         try
         {
@@ -79,14 +79,9 @@ public class IPCProvider
     }
 
     // bad, handle removal on framework
-    public void RemovePlayerData(uint playerEntityId)
+    internal void RemovePlayerData(uint playerEntityId)
     {
-        if (playerEntityId > 0)
-        {
-            plugin.ipcPlayers.TryRemove(playerEntityId, out _);
-            return;
-        }
-        plugin.ipcPlayers.Clear();
+        removedIPCPlayers.Enqueue(playerEntityId);
     }
 
     internal void Dispose()
