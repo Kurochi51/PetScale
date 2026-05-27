@@ -28,7 +28,7 @@ public class IPCProvider
     /// <summary>
     /// Collect PetScale local user data for IPC usage.
     /// </summary>
-    public readonly ICallGateProvider<string> getPlayerData;
+    public readonly ICallGateProvider<uint, string> getPlayerData;
 
     /// <summary>
     /// Send PetScale user data back. 
@@ -50,7 +50,7 @@ public class IPCProvider
         framework = _framework;
 
         attemptDataRefresh = RefreshPlayerData;
-        getPlayerData = _pluginInterface.GetIpcProvider<string>($"{APINamespace}.{nameof(GetPlayerData)}");
+        getPlayerData = _pluginInterface.GetIpcProvider<uint, string>($"{APINamespace}.{nameof(GetPlayerData)}");
         getPlayerData.RegisterFunc(GetPlayerData);
         sendPlayerData = _pluginInterface.GetIpcProvider<uint, string?, object>($"{APINamespace}.{nameof(SendPlayerData)}");
         sendPlayerData.RegisterAction(SendPlayerData);
@@ -86,8 +86,12 @@ public class IPCProvider
         }
     }
 
-    internal string GetPlayerData()
+    internal string GetPlayerData(uint entityId)
     {
+        if (playerState.EntityId != entityId)
+        {
+            return string.Empty;
+        }
         RefreshPlayerData();
         return JsonConvert.SerializeObject(localPlayerData);
     }
