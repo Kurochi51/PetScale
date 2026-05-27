@@ -15,6 +15,9 @@ namespace PetScale.IPC;
 public class IPCProvider
 {
     public const string APINamespace = "PetScale";
+    public const int MajorVersion = 1;
+    public const int MinorVersion = 1;
+
     internal IReadOnlyList<PetStruct> localPlayerData = [];
     internal IReadOnlyList<PetStruct> cachedLocalPlayerData = [];
     private readonly Configuration config;
@@ -23,24 +26,18 @@ public class IPCProvider
     private readonly PetScale plugin;
     private readonly IPluginLog log;
     private readonly IFramework framework;
-    internal readonly ConcurrentQueue<uint> removedIPCPlayers = [];
 
+    public readonly ICallGateProvider<(int, int)> ApiVersion;
 
     /// <summary>
     /// Collect PetScale local user data for IPC usage.
     /// </summary>
-    public readonly ICallGateProvider<uint, string> getPlayerData;
+    public readonly ICallGateProvider<string> getPlayerData;
 
     /// <summary>
     /// Send PetScale user data back. 
     /// </summary>
-    public readonly ICallGateProvider<uint, string?, object> sendPlayerData;
-
-    /// <summary>
-    /// Apply PetScale data sent via <see cref="sendPlayerData"/> for the provided entityId on the next framework update.
-    /// </summary>
-    public readonly ICallGateProvider<uint, object> applyScaleData;
-
+    public readonly ICallGateProvider<string?, object> sendPlayerData;
 
     public IPCProvider(Configuration _config, IPlayerState _localPlayer, IDalamudPluginInterface _pluginInterface, PetScale _plugin, IPluginLog _log, IFramework _framework)
     {
@@ -51,21 +48,15 @@ public class IPCProvider
         framework = _framework;
 
         attemptDataRefresh = RefreshPlayerData;
-        getPlayerData = _pluginInterface.GetIpcProvider<uint, string>($"{APINamespace}.{nameof(GetPlayerData)}");
+        ApiVersion = _pluginInterface.GetIpcProvider<(int, int)>($"{APINamespace}.{nameof(ApiVersion)}");
+        ApiVersion.RegisterFunc(() => (MajorVersion, MinorVersion));
+        getPlayerData = _pluginInterface.GetIpcProvider<string>($"{APINamespace}.{nameof(GetPlayerData)}");
         getPlayerData.RegisterFunc(GetPlayerData);
-        sendPlayerData = _pluginInterface.GetIpcProvider<uint, string?, object>($"{APINamespace}.{nameof(SendPlayerData)}");
+        sendPlayerData = _pluginInterface.GetIpcProvider<string?, object>($"{APINamespace}.{nameof(SendPlayerData)}");
         sendPlayerData.RegisterAction(SendPlayerData);
-        applyScaleData = _pluginInterface.GetIpcProvider<uint, object>($"{APINamespace}.{nameof(ApplyScaleData)}");
-        applyScaleData.RegisterAction(ApplyScaleData);
     }
 
-    internal void ApplyScaleData(uint entityId)
-    {
-        var syncData = plugin.ipcPlayers[entityId];
-        _ = framework.RunOnFrameworkThread(() => plugin.ApplyIPCPlayer(entityId, syncData));
-    }
-
-    internal void SendPlayerData(uint entityId, string? userData)
+    internal void SendPlayerData(string? userData)
     {
         if (userData.IsNullOrWhitespace())
         {
@@ -76,7 +67,7 @@ public class IPCProvider
         {
             return;
         }
-        plugin.ipcUsers.TryAdd(entityId, fullData);
+        _ = framework.RunOnFrameworkThread(() => plugin.ApplyIPCPlayer(fullData));
     }
 
     internal void RefreshPlayerData()
@@ -94,12 +85,8 @@ public class IPCProvider
         // if sync isn't blocking, update cachedLocalPlayerData
     }
 
-    internal string GetPlayerData(uint entityId)
+    internal string GetPlayerData()
     {
-        if (playerState.EntityId != entityId)
-        {
-            return string.Empty;
-        }
         RefreshPlayerData();
         return JsonConvert.SerializeObject(cachedLocalPlayerData);
     }
@@ -108,6 +95,6 @@ public class IPCProvider
     {
         getPlayerData.UnregisterFunc();
         sendPlayerData.UnregisterAction();
-        applyScaleData.UnregisterAction();
+        ApiVersion.UnregisterFunc();
     }
 }

@@ -95,8 +95,7 @@ public sealed class PetScale : IDalamudPlugin
 #endif
 
     private unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
-    public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcPlayers = [];
-    public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcUsers = [];
+    //public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcPlayers = [];
 
     public PetScale(IDalamudPluginInterface _pluginInterface,
         ICommandManager _commandManager,
@@ -345,31 +344,25 @@ public sealed class PetScale : IDalamudPlugin
     }
 
     // I can't think of a way to make sure this runs at a certain point in the framework, so any scaling already done is overriden
-    public unsafe void ApplyIPCPlayer(uint entityId, IReadOnlyList<PetStruct> petData)
+    public unsafe void ApplyIPCPlayer(IReadOnlyList<PetStruct> petData)
     {
-        var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(entityId);
-        // player already gone
-        if (character is null)
-        {
-            return;
-        }
         // go through each player <-> pet link
-        foreach (var player in secondaryActivePetDictionary.Where(mappedPets => mappedPets.Value.characterEiD == entityId))
+        foreach (var player in secondaryActivePetDictionary)
         {
+            var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.characterEiD);
+            // character is gone, or any petData ContentId doesn't match the given character.
+            // All petData entries should have the same ContentId, unless there's an issue with the data sent.
+            if (character is null || petData.Any(pet => pet.ContentId != character->ContentId))
+            {
+                continue;
+            }
             var pet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.petEiD);
-            // pet bye-bye
             if (pet is null || pet->NameString.IsNullOrWhitespace())
             {
                 continue;
             }
-            // this one's a bit awkward, any given IPC player will send their whole petData over, which means they can only have 1 pet
-            // or an individual setting for each, the individual links are confirmed through contentId
             foreach (var data in petData)
             {
-                if (character->ContentId != data.ContentId)
-                {
-                    continue;
-                }
                 if ((PetModel)pet->ModelContainer.ModelCharaId != data.PetID)
                 {
                     continue;
@@ -378,117 +371,6 @@ public sealed class PetScale : IDalamudPlugin
                 {
                     secondaryActivePetDictionary[player.Key] = (player.Value.characterEiD, player.Value.petEiD, true);
                 }
-            }
-        }
-    }
-
-    private unsafe void AssignIPCPlayers(int index, Pointer<BattleChara> character, Pointer<BattleChara> pet)
-    {
-        if (character.Value is null || pet.Value is null)
-        {
-            return;
-        }
-        if (pet.Value->NameString.IsNullOrWhitespace())
-        {
-            return;
-        }
-        var entries = ipcPlayers[character.Value->EntityId];
-        foreach (var entry in entries)
-        {
-            if (character.Value->ContentId != entry.ContentId)
-            {
-                continue;
-            }
-            if ((PetModel)pet.Value->ModelContainer.ModelCharaId != entry.PetID)
-            {
-                continue;
-            }
-            if (ipc.removedIPCPlayers.Contains(character.Value->EntityId))
-            {
-                continue;
-            }
-            if (SetScale(pet, entry, pet.Value->NameString))
-            {
-                secondaryActivePetDictionary[index] = (character.Value->EntityId, pet.Value->EntityId, true);
-            }
-        }
-    }
-
-    private unsafe void RemoveIPCPlayers()
-    {
-        // If 0 is in list, all ipc entries need to be removed if present
-        if (ipc.removedIPCPlayers.Any(eid => eid == 0))
-        {
-            foreach (var ipcPlayer in ipcPlayers)
-            {
-                foreach (var player in secondaryActivePetDictionary.Values)
-                {
-                    if (player.characterEiD != ipcPlayer.Key || !player.petSet)
-                    {
-                        continue;
-                    }
-                    var removedPet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.petEiD);
-                    var petOwner = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.characterEiD);
-                    if (removedPet is null || removedPet->NameString.IsNullOrWhitespace() || petOwner is null)
-                    {
-                        continue;
-                    }
-                    foreach (var petEntry in ipcPlayer.Value)
-                    {
-                        if (petEntry.ContentId != petOwner->ContentId)
-                        {
-                            continue;
-                        }
-                        if ((PetModel)removedPet->ModelContainer.ModelCharaId != petEntry.PetID)
-                        {
-                            continue;
-                        }
-                        Utilities.SetScale(removedPet,
-                            Utilities.GetDefaultScale((PetModel)removedPet->ModelContainer.ModelCharaId,
-                            vanillaPetSizeMap[(PetModel)removedPet->ModelContainer.ModelCharaId]));
-                    }
-                }
-            }
-            ipc.removedIPCPlayers.Clear();
-            ipcPlayers.Clear();
-            return;
-        }
-        for (var i = 0; i < ipc.removedIPCPlayers.Count; i++)
-        {
-            ipc.removedIPCPlayers.TryDequeue(out var removedPlayer);
-            var ipcPlayerData = ipcPlayers[removedPlayer];
-            var ipcPlayerRemoved = false;
-            foreach (var player in secondaryActivePetDictionary.Values)
-            {
-                if (player.characterEiD != removedPlayer || !player.petSet)
-                {
-                    continue;
-                }
-                var removedPet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.petEiD);
-                var petOwner = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.characterEiD);
-                if (removedPet is null || petOwner is null || removedPet->NameString.IsNullOrWhitespace())
-                {
-                    continue;
-                }
-                foreach (var pet in ipcPlayerData)
-                {
-                    if (pet.ContentId != petOwner->ContentId)
-                    {
-                        continue;
-                    }
-                    if ((PetModel)removedPet->ModelContainer.ModelCharaId != pet.PetID)
-                    {
-                        continue;
-                    }
-                    Utilities.SetScale(removedPet,
-                            Utilities.GetDefaultScale((PetModel)removedPet->ModelContainer.ModelCharaId,
-                            vanillaPetSizeMap[(PetModel)removedPet->ModelContainer.ModelCharaId]));
-                    ipcPlayerRemoved = true;
-                }
-            }
-            if (ipcPlayerRemoved)
-            {
-                ipcPlayers.Remove(removedPlayer, out _);
             }
         }
     }
@@ -550,20 +432,10 @@ public sealed class PetScale : IDalamudPlugin
                 }
             }
 
-            if (ipcPlayers.ContainsKey(character->EntityId))
-            {
-                AssignIPCPlayers(entry.Key, character, pet);
-                continue;
-            }
-
             if (ParseStruct(pet, &character->Character, pet->ModelContainer.ModelCharaId, character->EntityId == playerEntityId, allPets))
             {
                 secondaryActivePetDictionary[entry.Key] = (entry.Value.characterEiD, entry.Value.petEiD, true);
             }
-        }
-        if (!ipc.removedIPCPlayers.IsEmpty)
-        {
-            RemoveIPCPlayers();
         }
         if (removedPlayers.Count > 0)
         {
