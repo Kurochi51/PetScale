@@ -16,6 +16,7 @@ public class IPCProvider
 {
     public const string APINamespace = "PetScale";
     internal IReadOnlyList<PetStruct> localPlayerData = [];
+    internal IReadOnlyList<PetStruct> cachedLocalPlayerData = [];
     private readonly Configuration config;
     private readonly IPlayerState playerState;
     internal static Action? attemptDataRefresh;
@@ -80,10 +81,17 @@ public class IPCProvider
 
     internal void RefreshPlayerData()
     {
-        if (playerState.IsLoaded && playerState.EntityId != 0xE0000000)
+        if (!playerState.IsLoaded || playerState.EntityId == 0xE0000000)
         {
-            localPlayerData = [.. config.PetData.Where(player => player.ContentId == playerState.ContentId)];
+            return;
         }
+        localPlayerData = [.. config.PetData.Where(player => player.ContentId == playerState.ContentId)];
+        // first time assignment
+        if (cachedLocalPlayerData.Count is 0)
+        {
+            cachedLocalPlayerData = localPlayerData;
+        }
+        // if sync isn't blocking, update cachedLocalPlayerData
     }
 
     internal string GetPlayerData(uint entityId)
@@ -93,7 +101,7 @@ public class IPCProvider
             return string.Empty;
         }
         RefreshPlayerData();
-        return JsonConvert.SerializeObject(localPlayerData);
+        return JsonConvert.SerializeObject(cachedLocalPlayerData);
     }
 
     internal void Dispose()
