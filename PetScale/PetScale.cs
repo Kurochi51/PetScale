@@ -7,7 +7,6 @@ using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.Interop;
 using Lumina.Excel.Sheets;
-using Lumina.Excel.Sheets.Experimental;
 using PetScale.Enums;
 using PetScale.Helpers;
 using PetScale.IPC;
@@ -97,6 +96,7 @@ public sealed class PetScale : IDalamudPlugin
 
     private unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
     public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcPlayers = [];
+    public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcUsers = [];
 
     public PetScale(IDalamudPluginInterface _pluginInterface,
         ICommandManager _commandManager,
@@ -118,7 +118,7 @@ public sealed class PetScale : IDalamudPlugin
         gameConfig = _gameConfig;
         config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         utilities = new Utilities(_dataManger, log, clientState.ClientLanguage);
-        ipc = new IPCProvider(config, playerState, pluginInterface, this, log);
+        ipc = new IPCProvider(config, playerState, pluginInterface, this, log, framework);
 
         ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager, utilities);
 #if DEBUG
@@ -342,6 +342,44 @@ public sealed class PetScale : IDalamudPlugin
             secondaryActivePetDictionary.TryAdd(hash, (entry.Value.character.Value->EntityId, entry.Key.Value->EntityId, false));
         }
         activePetDictionary.Clear();
+    }
+
+    // I can't think of a way to make sure this runs at a certain point in the framework, so any scaling already done is overriden
+    public unsafe void ApplyIPCPlayer(uint entityId, IReadOnlyList<PetStruct> petData)
+    {
+        var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(entityId);
+        // player already gone
+        if (character is null)
+        {
+            return;
+        }
+        // go through each player <-> pet link
+        foreach (var player in secondaryActivePetDictionary.Where(mappedPets => mappedPets.Value.characterEiD == entityId))
+        {
+            var pet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.petEiD);
+            // pet bye-bye
+            if (pet is null || pet->NameString.IsNullOrWhitespace())
+            {
+                continue;
+            }
+            // this one's a bit awkward, any given IPC player will send their whole petData over, which means they can only have 1 pet
+            // or an individual setting for each, the individual links are confirmed through contentId
+            foreach (var data in petData)
+            {
+                if (character->ContentId != data.ContentId)
+                {
+                    continue;
+                }
+                if ((PetModel)pet->ModelContainer.ModelCharaId != data.PetID)
+                {
+                    continue;
+                }
+                if (SetScale(pet, data, pet->NameString))
+                {
+                    secondaryActivePetDictionary[player.Key] = (player.Value.characterEiD, player.Value.petEiD, true);
+                }
+            }
+        }
     }
 
     private unsafe void AssignIPCPlayers(int index, Pointer<BattleChara> character, Pointer<BattleChara> pet)

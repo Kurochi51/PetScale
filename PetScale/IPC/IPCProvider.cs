@@ -2,9 +2,11 @@ using System;
 using System.Linq;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 using Dalamud.Plugin.Services;
 using Dalamud.Plugin.Ipc;
+using Dalamud.Utility;
 using Dalamud.Plugin;
 using PetScale.Structs;
 
@@ -19,38 +21,61 @@ public class IPCProvider
     internal static Action? attemptDataRefresh;
     private readonly PetScale plugin;
     private readonly IPluginLog log;
+    private readonly IFramework framework;
     internal readonly ConcurrentQueue<uint> removedIPCPlayers = [];
 
 
     /// <summary>
-    /// Collects the local user's configured pets, to be distributed alongside other character data upon sync via <see cref="setPlayerData"/>.
+    /// Collect PetScale local user data for IPC usage.
     /// </summary>
-    public readonly ICallGateProvider<IReadOnlyList<PetStruct>> getPlayerData;
+    public readonly ICallGateProvider<string> getPlayerData;
 
     /// <summary>
-    /// Adds newly synced target to the list of ipc targets to scale, needs the data gathered from <see cref="getPlayerData"/>.
+    /// Send PetScale user data back. 
     /// </summary>
-    public readonly ICallGateProvider<uint, IReadOnlyList<PetStruct>, object?> setPlayerData;
+    public readonly ICallGateProvider<uint, string?, object> sendPlayerData;
 
     /// <summary>
-    /// Call with 0 to remove all, whenever the local user gets disconnected from sync, otherwise specific synced user that isn't received by the local user
+    /// Apply PetScale data sent via <see cref="sendPlayerData"/> for the provided entityId on the next framework update.
     /// </summary>
-    public readonly ICallGateProvider<uint, object?> removePlayerData;
+    public readonly ICallGateProvider<uint, object> applyScaleData;
 
-    public IPCProvider(Configuration _config, IPlayerState _localPlayer, IDalamudPluginInterface _pluginInterface, PetScale _plugin, IPluginLog _log)
+
+    public IPCProvider(Configuration _config, IPlayerState _localPlayer, IDalamudPluginInterface _pluginInterface, PetScale _plugin, IPluginLog _log, IFramework _framework)
     {
         config = _config;
         playerState = _localPlayer;
         plugin = _plugin;
         log = _log;
+        framework = _framework;
 
         attemptDataRefresh = RefreshPlayerData;
-        getPlayerData = _pluginInterface.GetIpcProvider<IReadOnlyList<PetStruct>>($"{APINamespace}.{nameof(GetPlayerData)}");
+        getPlayerData = _pluginInterface.GetIpcProvider<string>($"{APINamespace}.{nameof(GetPlayerData)}");
         getPlayerData.RegisterFunc(GetPlayerData);
-        setPlayerData = _pluginInterface.GetIpcProvider<uint, IReadOnlyList<PetStruct>, object?>($"{APINamespace}.{nameof(SetPlayerData)}");
-        setPlayerData.RegisterAction(SetPlayerData);
-        removePlayerData = _pluginInterface.GetIpcProvider<uint, object?>($"{APINamespace}.{nameof(RemovePlayerData)}");
-        removePlayerData.RegisterAction(RemovePlayerData);
+        sendPlayerData = _pluginInterface.GetIpcProvider<uint, string?, object>($"{APINamespace}.{nameof(SendPlayerData)}");
+        sendPlayerData.RegisterAction(SendPlayerData);
+        applyScaleData = _pluginInterface.GetIpcProvider<uint, object>($"{APINamespace}.{nameof(ApplyScaleData)}");
+        applyScaleData.RegisterAction(ApplyScaleData);
+    }
+
+    internal void ApplyScaleData(uint entityId)
+    {
+        var syncData = plugin.ipcPlayers[entityId];
+        _ = framework.RunOnFrameworkThread(() => plugin.ApplyIPCPlayer(entityId, syncData));
+    }
+
+    internal void SendPlayerData(uint entityId, string? userData)
+    {
+        if (userData.IsNullOrWhitespace())
+        {
+            return;
+        }
+        var fullData = JsonConvert.DeserializeObject<IReadOnlyList<PetStruct>>(userData);
+        if (fullData is null)
+        {
+            return;
+        }
+        plugin.ipcUsers.TryAdd(entityId, fullData);
     }
 
     internal void RefreshPlayerData()
@@ -60,34 +85,17 @@ public class IPCProvider
             localPlayerData = [.. config.PetData.Where(player => player.ContentId == playerState.ContentId)];
         }
     }
-    internal IReadOnlyList<PetStruct> GetPlayerData()
+
+    internal string GetPlayerData()
     {
         RefreshPlayerData();
-        return localPlayerData;
-    }
-
-    internal void SetPlayerData(uint playerEntityId, IReadOnlyList<PetStruct> playerData)
-    {
-        try
-        {
-            plugin.ipcPlayers.TryAdd(playerEntityId, playerData);
-        }
-        catch (Exception ex)
-        {
-            log.Error($"{nameof(plugin.ipcPlayers)} couldn't be accessed by {setPlayerData.GetContext()?.SourcePlugin?.Name}\n{ex.Message}");
-        }
-    }
-
-    // bad, handle removal on framework
-    internal void RemovePlayerData(uint playerEntityId)
-    {
-        removedIPCPlayers.Enqueue(playerEntityId);
+        return JsonConvert.SerializeObject(localPlayerData);
     }
 
     internal void Dispose()
     {
         getPlayerData.UnregisterFunc();
-        setPlayerData.UnregisterAction();
-        removePlayerData.UnregisterAction();
+        sendPlayerData.UnregisterAction();
+        applyScaleData.UnregisterAction();
     }
 }
