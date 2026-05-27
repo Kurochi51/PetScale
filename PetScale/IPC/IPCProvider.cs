@@ -88,6 +88,10 @@ public class IPCProvider
     internal string GetPlayerData()
     {
         RefreshPlayerData();
+        var jsonSettings = new JsonSerializerSettings()
+        {
+            TypeNameHandling = TypeNameHandling.All,
+        };
         return JsonConvert.SerializeObject(cachedLocalPlayerData);
     }
 
