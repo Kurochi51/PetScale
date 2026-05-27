@@ -95,7 +95,7 @@ public sealed class PetScale : IDalamudPlugin
 #endif
 
     private unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
-    //public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcPlayers = [];
+    public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcPlayers = [];
 
     public PetScale(IDalamudPluginInterface _pluginInterface,
         ICommandManager _commandManager,
@@ -347,9 +347,11 @@ public sealed class PetScale : IDalamudPlugin
     public unsafe void ApplyIPCPlayer(IReadOnlyList<PetStruct> petData)
     {
         // go through each player <-> pet link
+        var petFound = false;
         foreach (var player in secondaryActivePetDictionary)
         {
             var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.characterEiD);
+
             // character is gone, or any petData ContentId doesn't match the given character.
             // All petData entries should have the same ContentId, unless there's an issue with the data sent.
             if (character is null || petData.Any(pet => pet.ContentId != character->ContentId))
@@ -370,6 +372,19 @@ public sealed class PetScale : IDalamudPlugin
                 if (SetScale(pet, data, pet->NameString))
                 {
                     secondaryActivePetDictionary[player.Key] = (player.Value.characterEiD, player.Value.petEiD, true);
+                    petFound = true;
+                }
+            }
+        }
+        // if 
+        if (!petFound)
+        {
+            var cidLookup = petData.First(data => data.ContentId != 0);
+            foreach (var character in BattleCharaSpan)
+            {
+                if (character.Value is null || character.Value->ContentId != cidLookup.ContentId || !character.Value->NameString.Equals(cidLookup.CharacterName))
+                {
+                    continue;
                 }
             }
         }
