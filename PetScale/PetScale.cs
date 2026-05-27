@@ -18,6 +18,7 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
 using System.Threading.Tasks;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
@@ -117,12 +118,12 @@ public sealed class PetScale : IDalamudPlugin
         gameConfig = _gameConfig;
         config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         utilities = new Utilities(_dataManger, log, clientState.ClientLanguage);
-        ipc = new IPCProvider(config, playerState, pluginInterface, this, log, framework);
+        ipc = new IPCProvider(config, playerState, pluginInterface, this, log, framework, _objectTable);
 
-        ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager, utilities);
+        ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager, utilities, ipc);
 #if DEBUG
         objectTable = _objectTable;
-        DevWindow = new DevWindow(log, pluginInterface);
+        DevWindow = new DevWindow(log, pluginInterface, ipc);
         WindowSystem.AddWindow(DevWindow);
         dictionaryExpirationTime = TimeSpan.FromMilliseconds(20).TotalMilliseconds;
 #endif
@@ -149,6 +150,8 @@ public sealed class PetScale : IDalamudPlugin
         {
             Utilities.GetPetSizes(gameConfig, vanillaPetSizeMap);
         }
+        
+        ipc.OnSaveHasChanged();
     }
 
     private void SetStopwatch(int _type, int _code) => SetStopwatch();
@@ -474,6 +477,7 @@ public sealed class PetScale : IDalamudPlugin
         if (savePending)
         {
             config.UpdateNeeded = config.PetData.Any(data => data.UpdateRequired());
+            ipc.OnSaveHasChanged();
             config.Save(pluginInterface);
         }
         return petSet;
@@ -706,6 +710,9 @@ public sealed class PetScale : IDalamudPlugin
         pluginInterface.UiBuilder.Draw -= UiDraw;
 
         UnsetPets();
+#if DEBUG
+        DevWindow.Dispose(); 
+#endif
         ConfigWindow.Dispose();
         WindowSystem.RemoveAllWindows();
 
