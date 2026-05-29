@@ -1,26 +1,29 @@
-using Dalamud.Game.Command;
-using Dalamud.Interface.Windowing;
-using Dalamud.Plugin;
-using Dalamud.Plugin.Services;
-using Dalamud.Utility;
-using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using FFXIVClientStructs.FFXIV.Client.Game.Object;
-using FFXIVClientStructs.Interop;
-using Lumina.Excel.Sheets;
-using PetScale.Enums;
-using PetScale.Helpers;
-using PetScale.IPC;
-using PetScale.Structs;
-using PetScale.Windows;
 using System;
-using System.Collections.Concurrent;
+using System.Linq;
+using System.Numerics;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Collections.Frozen;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
+
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using Dalamud.Interface.Windowing;
+using FFXIVClientStructs.Interop;
+using Dalamud.Plugin.Services;
+using Dalamud.Game.Command;
+using Lumina.Excel.Sheets;
+using Dalamud.Utility;
+using Dalamud.Plugin;
+
+using PetScale.IPC;
+using PetScale.Enums;
+using PetScale.Helpers;
+using PetScale.Structs;
+using PetScale.Windows;
 
 namespace PetScale;
 
@@ -44,7 +47,7 @@ public sealed class PetScale : IDalamudPlugin
 
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
     private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = [];
-    private readonly Dictionary<int, (uint characterEiD, uint petEiD, bool petSet)> secondaryActivePetDictionary = [];
+    internal readonly ConcurrentDictionary<int, (uint characterEiD, uint petEiD, bool petSet)> secondaryActivePetDictionary = [];
     private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new(StringComparer.OrdinalIgnoreCase);
     public static IDictionary<PetModel, PetSize> vanillaPetSizeMap { get; } = new Dictionary<PetModel, PetSize>();
     private readonly Stopwatch stopwatch = new();
@@ -94,8 +97,7 @@ public sealed class PetScale : IDalamudPlugin
     private readonly Dictionary<string, (PetModel?, int, Vector3 scale, Vector3 scale2)> petModelDic = [];
 #endif
 
-    private unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
-    public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcPlayers = [];
+    internal unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
 
     public PetScale(IDalamudPluginInterface _pluginInterface,
         ICommandManager _commandManager,
@@ -117,12 +119,12 @@ public sealed class PetScale : IDalamudPlugin
         gameConfig = _gameConfig;
         config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         utilities = new Utilities(_dataManger, log, clientState.ClientLanguage);
-        ipc = new IPCProvider(config, playerState, pluginInterface, this, log, framework);
+        ipc = new IPCProvider(config, playerState, pluginInterface, this, log, framework, _objectTable);
 
-        ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager, utilities);
+        ConfigWindow = new ConfigWindow(this, config, pluginInterface, log, _notificationManager, utilities, ipc);
 #if DEBUG
         objectTable = _objectTable;
-        DevWindow = new DevWindow(log, pluginInterface);
+        DevWindow = new DevWindow(log, pluginInterface, ipc);
         WindowSystem.AddWindow(DevWindow);
         dictionaryExpirationTime = TimeSpan.FromMilliseconds(20).TotalMilliseconds;
 #endif
@@ -149,6 +151,8 @@ public sealed class PetScale : IDalamudPlugin
         {
             Utilities.GetPetSizes(gameConfig, vanillaPetSizeMap);
         }
+
+        ipc.OnSaveHasChanged();
     }
 
     private void SetStopwatch(int _type, int _code) => SetStopwatch();
@@ -159,17 +163,30 @@ public sealed class PetScale : IDalamudPlugin
         {
             Utilities.GetPetSizes(gameConfig, vanillaPetSizeMap);
             stopwatch.Start();
+            ipc.OnSaveHasChanged();
             return;
         }
         secondaryActivePetDictionary.Clear();
         config.HomeWorld = 0;
         QueueOnlyExistingData();
         stopwatch.Stop();
+        ipc.cachedLocalPlayerData = string.Empty;
     }
 
-    private void TerritoryChanged(uint obj)
+    // ipc should technically clear cached data whenever the player character becomes null, and remake it when it comes back
+    // but outside of some odd instances where the cache being incorrect isn't relevant for syncing purposes, only loading does that
+    private unsafe void TerritoryChanged(uint obj)
     {
         stopwatch.Restart();
+        ipc.cachedLocalPlayerData = string.Empty;
+        _ = Task.Run(async () =>
+        {
+            while (BattleCharaSpan[0].Value is null)
+            {
+                continue;
+            }
+            ipc.OnSaveHasChanged();
+        }).ConfigureAwait(false);
     }
 
     private void QueueOnlyExistingData()
@@ -343,53 +360,6 @@ public sealed class PetScale : IDalamudPlugin
         activePetDictionary.Clear();
     }
 
-    // I can't think of a way to make sure this runs at a certain point in the framework, so any scaling already done is overriden
-    public unsafe void ApplyIPCPlayer(IReadOnlyList<PetStruct> petData)
-    {
-        // go through each player <-> pet link
-        var petFound = false;
-        foreach (var player in secondaryActivePetDictionary)
-        {
-            var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.characterEiD);
-
-            // character is gone, or any petData ContentId doesn't match the given character.
-            // All petData entries should have the same ContentId, unless there's an issue with the data sent.
-            if (character is null || petData.Any(pet => pet.ContentId != character->ContentId))
-            {
-                continue;
-            }
-            var pet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.petEiD);
-            if (pet is null || pet->NameString.IsNullOrWhitespace())
-            {
-                continue;
-            }
-            foreach (var data in petData)
-            {
-                if ((PetModel)pet->ModelContainer.ModelCharaId != data.PetID)
-                {
-                    continue;
-                }
-                if (SetScale(pet, data, pet->NameString))
-                {
-                    secondaryActivePetDictionary[player.Key] = (player.Value.characterEiD, player.Value.petEiD, true);
-                    petFound = true;
-                }
-            }
-        }
-        // if 
-        if (!petFound)
-        {
-            var cidLookup = petData.First(data => data.ContentId != 0);
-            foreach (var character in BattleCharaSpan)
-            {
-                if (character.Value is null || character.Value->ContentId != cidLookup.ContentId || !character.Value->NameString.Equals(cidLookup.CharacterName))
-                {
-                    continue;
-                }
-            }
-        }
-    }
-
     private unsafe void ParseDictionary(uint playerEntityId)
     {
         var allPets = config.PetData.Where(userData => userData.PetID is PetModel.AllPets).ToList();
@@ -474,6 +444,7 @@ public sealed class PetScale : IDalamudPlugin
         if (savePending)
         {
             config.UpdateNeeded = config.PetData.Any(data => data.UpdateRequired());
+            ipc.OnSaveHasChanged();
             config.Save(pluginInterface);
         }
         return petSet;
@@ -581,7 +552,7 @@ public sealed class PetScale : IDalamudPlugin
         utilities.CachePlayerList(entityId, config.HomeWorld, players, BattleCharaSpan);
     }
 
-    private unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
+    internal unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
     {
         if (presetPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
         {
@@ -706,6 +677,9 @@ public sealed class PetScale : IDalamudPlugin
         pluginInterface.UiBuilder.Draw -= UiDraw;
 
         UnsetPets();
+#if DEBUG
+        DevWindow.Dispose();
+#endif
         ConfigWindow.Dispose();
         WindowSystem.RemoveAllWindows();
 
