@@ -178,7 +178,7 @@ public class IPCProvider
         {
             return;
         }
-        _ = framework.RunOnFrameworkThread(() => plugin.ApplyIPCPlayer(fullData));
+        _ = framework.RunOnFrameworkThread(() => ApplyIPCPlayer(fullData));
     }
 
     internal void RefreshPlayerData()
@@ -211,6 +211,87 @@ public class IPCProvider
     {
         log.Verbose($"GetPlayerData IPC: {cachedLocalPlayerData}");
         return cachedLocalPlayerData;
+    }
+
+    // I can't think of a way to make sure this runs at a certain point in the framework, so any scaling already done is overriden
+    public unsafe void ApplyIPCPlayer(IReadOnlyList<PetStruct> petData)
+    {
+        var petFound = false;
+        // go through each player <-> pet link
+        foreach (var player in plugin.secondaryActivePetDictionary)
+        {
+            var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.characterEiD);
+
+            // character is gone, or any petData ContentId doesn't match the given character.
+            // All petData entries should have the same ContentId, unless there's an issue with the data sent.
+            if (character is null || petData.Any(pet => pet.ContentId != character->ContentId))
+            {
+                continue;
+            }
+            var pet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.petEiD);
+            if (pet is null || pet->NameString.IsNullOrWhitespace())
+            {
+                continue;
+            }
+            foreach (var data in petData)
+            {
+                if (data.PetID is PetModel.AllPets)
+                {
+                    petFound = plugin.SetScale(pet, data, pet->NameString);
+                    plugin.secondaryActivePetDictionary[player.Key] = (player.Value.characterEiD, player.Value.petEiD, true);
+                }
+                if ((PetModel)pet->ModelContainer.ModelCharaId == data.PetID)
+                {
+                    petFound = plugin.SetScale(pet, data, pet->NameString);
+                    plugin.secondaryActivePetDictionary[player.Key] = (player.Value.characterEiD, player.Value.petEiD, true);
+                }
+            }
+        }
+        if (petFound)
+        {
+            return;
+        }
+        // if pet wasn't found in the secondaryActivePetDictionary, then it's entirely possible this was called in the .5s downtime the dictionary rebuild has for performance reasons
+        var cidLookup = petData.First(data => data.ContentId != 0);
+        BattleChara* petOwner = null;
+        foreach (var character in plugin.BattleCharaSpan)
+        {
+            if (character.Value is null
+                || character.Value->ObjectKind is not ObjectKind.Pc
+                || character.Value->ContentId != cidLookup.ContentId
+                || !character.Value->NameString.Equals(cidLookup.CharacterName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            petOwner = character;
+            // So help me god if this ever backfires
+            break;
+        }
+        foreach (var pet in plugin.BattleCharaSpan)
+        {
+            if (pet.Value is null
+                || pet.Value->ObjectKind is not ObjectKind.BattleNpc
+                || !PetScale.petModelSet.Contains((PetModel)pet.Value->ModelContainer.ModelCharaId)
+                || pet.Value->OwnerId != petOwner->EntityId
+                || pet.Value->NameString.IsNullOrWhitespace())
+            {
+                continue;
+            }
+            var hash = pet.Value->EntityId.GetHashCode() ^ ((petOwner->EntityId.GetHashCode() << 16) | (petOwner->EntityId.GetHashCode() >> (32 - 16)));
+            foreach (var data in petData)
+            {
+                if (data.PetID is PetModel.AllPets)
+                {
+                    petFound = plugin.SetScale(pet, data, pet.Value->NameString);
+                    plugin.secondaryActivePetDictionary.TryAdd(hash, (petOwner->EntityId, pet.Value->EntityId, petFound));
+                }
+                if ((PetModel)pet.Value->ModelContainer.ModelCharaId == data.PetID)
+                {
+                    petFound = plugin.SetScale(pet, data, pet.Value->NameString);
+                    plugin.secondaryActivePetDictionary.TryAdd(hash, (petOwner->EntityId, pet.Value->EntityId, petFound));
+                }
+            }
+        }
     }
 
     internal void Dispose()

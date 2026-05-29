@@ -46,7 +46,7 @@ public sealed class PetScale : IDalamudPlugin
 
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
     private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = [];
-    private readonly Dictionary<int, (uint characterEiD, uint petEiD, bool petSet)> secondaryActivePetDictionary = [];
+    internal readonly ConcurrentDictionary<int, (uint characterEiD, uint petEiD, bool petSet)> secondaryActivePetDictionary = [];
     private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new(StringComparer.OrdinalIgnoreCase);
     public static IDictionary<PetModel, PetSize> vanillaPetSizeMap { get; } = new Dictionary<PetModel, PetSize>();
     private readonly Stopwatch stopwatch = new();
@@ -96,8 +96,7 @@ public sealed class PetScale : IDalamudPlugin
     private readonly Dictionary<string, (PetModel?, int, Vector3 scale, Vector3 scale2)> petModelDic = [];
 #endif
 
-    private unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
-    public ConcurrentDictionary<uint, IReadOnlyList<PetStruct>> ipcPlayers = [];
+    internal unsafe Span<Pointer<BattleChara>> BattleCharaSpan => CharacterManager.Instance()->BattleCharas;
 
     public PetScale(IDalamudPluginInterface _pluginInterface,
         ICommandManager _commandManager,
@@ -360,83 +359,6 @@ public sealed class PetScale : IDalamudPlugin
         activePetDictionary.Clear();
     }
 
-    // I can't think of a way to make sure this runs at a certain point in the framework, so any scaling already done is overriden
-    public unsafe void ApplyIPCPlayer(IReadOnlyList<PetStruct> petData)
-    {
-        var petFound = false;
-        // go through each player <-> pet link
-        foreach (var player in secondaryActivePetDictionary)
-        {
-            var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.characterEiD);
-
-            // character is gone, or any petData ContentId doesn't match the given character.
-            // All petData entries should have the same ContentId, unless there's an issue with the data sent.
-            if (character is null || petData.Any(pet => pet.ContentId != character->ContentId))
-            {
-                continue;
-            }
-            var pet = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.petEiD);
-            if (pet is null || pet->NameString.IsNullOrWhitespace())
-            {
-                continue;
-            }
-            foreach (var data in petData)
-            {
-                if ((PetModel)pet->ModelContainer.ModelCharaId != data.PetID)
-                {
-                    continue;
-                }
-                if (SetScale(pet, data, pet->NameString))
-                {
-                    secondaryActivePetDictionary[player.Key] = (player.Value.characterEiD, player.Value.petEiD, true);
-                    petFound = true;
-                }
-            }
-        }
-        // if pet wasn't found in the secondaryActivePetDictionary, then it's entirely possible this was called in the .5s downtime the dictionary rebuild has for performance reasons
-        if (!petFound)
-        {
-            var cidLookup = petData.First(data => data.ContentId != 0);
-            BattleChara* petOwner = null;
-            foreach (var character in BattleCharaSpan)
-            {
-                if (character.Value is null
-                    || character.Value->ObjectKind is not ObjectKind.Pc
-                    || character.Value->ContentId != cidLookup.ContentId
-                    || !character.Value->NameString.Equals(cidLookup.CharacterName, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-                petOwner = character;
-                // So help me god if this ever backfires
-                break;
-            }
-            foreach (var pet in BattleCharaSpan)
-            {
-                if (pet.Value is null
-                    || pet.Value->ObjectKind is not ObjectKind.BattleNpc
-                    || !petModelSet.Contains((PetModel)pet.Value->ModelContainer.ModelCharaId)
-                    || pet.Value->OwnerId != petOwner->EntityId
-                    || pet.Value->NameString.IsNullOrWhitespace())
-                {
-                    continue;
-                }
-                var data = petData.FirstOrDefault(identiy => identiy.PetID == (PetModel)pet.Value->ModelContainer.ModelCharaId);
-                // the pet itself is supported, but it hasn't been assigned by the user
-                if (data.IsDefault())
-                {
-                    continue;
-                }
-                if (SetScale(pet, data, pet.Value->NameString))
-                {
-                    petFound = true;
-                    var hash = pet.Value->EntityId.GetHashCode() ^ ((petOwner->EntityId.GetHashCode() << 16) | (petOwner->EntityId.GetHashCode() >> (32 - 16)));
-                    secondaryActivePetDictionary.TryAdd(hash, (petOwner->EntityId, pet.Value->EntityId, petFound));
-                }
-            }
-        }
-    }
-
     private unsafe void ParseDictionary(uint playerEntityId)
     {
         var allPets = config.PetData.Where(userData => userData.PetID is PetModel.AllPets).ToList();
@@ -629,7 +551,7 @@ public sealed class PetScale : IDalamudPlugin
         utilities.CachePlayerList(entityId, config.HomeWorld, players, BattleCharaSpan);
     }
 
-    private unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
+    internal unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
     {
         if (presetPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
         {

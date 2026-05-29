@@ -27,7 +27,7 @@ public sealed class DevWindow : Window, IDisposable
     private Action tabToDraw;
     private string cachedIPCData = string.Empty;
 
-    private ICallGateSubscriber<string, object> onPlayerData;
+    private readonly ICallGateSubscriber<string, object> onPlayerData;
 
     public DevWindow(IPluginLog _pluginLog, IDalamudPluginInterface _pluginInterface, IPCProvider _ipcProvider) : base("DevWindow - " + nameof(PetScale))
     {
