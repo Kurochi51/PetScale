@@ -1,27 +1,28 @@
-using Dalamud.Game.Command;
-using Dalamud.Interface.Windowing;
-using Dalamud.Plugin;
-using Dalamud.Plugin.Services;
-using Dalamud.Utility;
-using FFXIVClientStructs.FFXIV.Client.Game.Character;
-using FFXIVClientStructs.FFXIV.Client.Game.Object;
-using FFXIVClientStructs.Interop;
-using Lumina.Excel.Sheets;
-using PetScale.Enums;
-using PetScale.Helpers;
-using PetScale.IPC;
-using PetScale.Structs;
-using PetScale.Windows;
 using System;
-using System.Collections.Concurrent;
+using System.Linq;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Collections.Frozen;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Numerics;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
+
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using Dalamud.Interface.Windowing;
+using FFXIVClientStructs.Interop;
+using Dalamud.Plugin.Services;
+using Dalamud.Game.Command;
+using Lumina.Excel.Sheets;
+using Dalamud.Utility;
+using Dalamud.Plugin;
+
+using PetScale.IPC;
+using PetScale.Enums;
+using PetScale.Helpers;
+using PetScale.Structs;
+using PetScale.Windows;
 
 namespace PetScale;
 
@@ -150,7 +151,7 @@ public sealed class PetScale : IDalamudPlugin
         {
             Utilities.GetPetSizes(gameConfig, vanillaPetSizeMap);
         }
-        
+
         ipc.OnSaveHasChanged();
     }
 
@@ -162,17 +163,30 @@ public sealed class PetScale : IDalamudPlugin
         {
             Utilities.GetPetSizes(gameConfig, vanillaPetSizeMap);
             stopwatch.Start();
+            ipc.OnSaveHasChanged();
             return;
         }
         secondaryActivePetDictionary.Clear();
         config.HomeWorld = 0;
         QueueOnlyExistingData();
         stopwatch.Stop();
+        ipc.cachedLocalPlayerData = string.Empty;
     }
 
-    private void TerritoryChanged(uint obj)
+    // ipc should technically clear cached data whenever the player character becomes null, and remake it when it comes back
+    // but outside of some odd instances where the cache being incorrect isn't relevant for syncing purposes, only loading does that
+    private unsafe void TerritoryChanged(uint obj)
     {
         stopwatch.Restart();
+        ipc.cachedLocalPlayerData = string.Empty;
+        _ = Task.Run(async () =>
+        {
+            while (BattleCharaSpan[0].Value is null)
+            {
+                continue;
+            }
+            ipc.OnSaveHasChanged();
+        }).ConfigureAwait(false);
     }
 
     private void QueueOnlyExistingData()
@@ -349,8 +363,8 @@ public sealed class PetScale : IDalamudPlugin
     // I can't think of a way to make sure this runs at a certain point in the framework, so any scaling already done is overriden
     public unsafe void ApplyIPCPlayer(IReadOnlyList<PetStruct> petData)
     {
-        // go through each player <-> pet link
         var petFound = false;
+        // go through each player <-> pet link
         foreach (var player in secondaryActivePetDictionary)
         {
             var character = CharacterManager.Instance()->LookupBattleCharaByEntityId(player.Value.characterEiD);
@@ -379,15 +393,45 @@ public sealed class PetScale : IDalamudPlugin
                 }
             }
         }
-        // if 
+        // if pet wasn't found in the secondaryActivePetDictionary, then it's entirely possible this was called in the .5s downtime the dictionary rebuild has for performance reasons
         if (!petFound)
         {
             var cidLookup = petData.First(data => data.ContentId != 0);
+            BattleChara* petOwner = null;
             foreach (var character in BattleCharaSpan)
             {
-                if (character.Value is null || character.Value->ContentId != cidLookup.ContentId || !character.Value->NameString.Equals(cidLookup.CharacterName))
+                if (character.Value is null
+                    || character.Value->ObjectKind is not ObjectKind.Pc
+                    || character.Value->ContentId != cidLookup.ContentId
+                    || !character.Value->NameString.Equals(cidLookup.CharacterName, StringComparison.Ordinal))
                 {
                     continue;
+                }
+                petOwner = character;
+                // So help me god if this ever backfires
+                break;
+            }
+            foreach (var pet in BattleCharaSpan)
+            {
+                if (pet.Value is null
+                    || pet.Value->ObjectKind is not ObjectKind.BattleNpc
+                    || !petModelSet.Contains((PetModel)pet.Value->ModelContainer.ModelCharaId)
+                    || pet.Value->OwnerId != petOwner->EntityId
+                    || pet.Value->NameString.IsNullOrWhitespace())
+                {
+                    continue;
+                }
+                var data = petData.FirstOrDefault(identiy => identiy.PetID == (PetModel)pet.Value->ModelContainer.ModelCharaId);
+                // the pet itself is supported, but it hasn't been assigned by the user
+                if (data.IsDefault())
+                {
+                    continue;
+                }
+                if (SetScale(pet, data, pet.Value->NameString))
+                {
+                    petFound = true;
+                    var hash = pet.Value->EntityId.GetHashCode() ^ ((petOwner->EntityId.GetHashCode() << 16) | (petOwner->EntityId.GetHashCode() >> (32 - 16)));
+                    secondaryActivePetDictionary.TryAdd(hash, (petOwner->EntityId, pet.Value->EntityId, petFound));
                 }
             }
         }
@@ -711,7 +755,7 @@ public sealed class PetScale : IDalamudPlugin
 
         UnsetPets();
 #if DEBUG
-        DevWindow.Dispose(); 
+        DevWindow.Dispose();
 #endif
         ConfigWindow.Dispose();
         WindowSystem.RemoveAllWindows();

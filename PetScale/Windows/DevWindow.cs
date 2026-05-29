@@ -13,7 +13,7 @@ using PetScale.IPC;
 
 namespace PetScale.Windows;
 
-public class DevWindow : Window, IDisposable
+public sealed class DevWindow : Window, IDisposable
 {
     private static readonly List<string> PrintLines = [];
     private static readonly Queue<IGameObject> RedrawObjects = new();
@@ -26,9 +26,9 @@ public class DevWindow : Window, IDisposable
 
     private Action tabToDraw;
     private string cachedIPCData = string.Empty;
-    
+
     private ICallGateSubscriber<string, object> onPlayerData;
-    
+
     public DevWindow(IPluginLog _pluginLog, IDalamudPluginInterface _pluginInterface, IPCProvider _ipcProvider) : base("DevWindow - " + nameof(PetScale))
     {
         pluginInterface = _pluginInterface;
@@ -40,7 +40,7 @@ public class DevWindow : Window, IDisposable
             MinimumSize = new Vector2(200, 200),
             MaximumSize = new Vector2(float.MaxValue, float.MaxValue),
         };
-        
+
         onPlayerData = _pluginInterface.GetIpcSubscriber<string, object>("PetScale.OnPlayerDataChanged");
         onPlayerData.Subscribe(OnIPCDataChanged);
     }
@@ -49,7 +49,7 @@ public class DevWindow : Window, IDisposable
     {
         onPlayerData.Unsubscribe(OnIPCDataChanged);
     }
-    
+
     private void OnIPCDataChanged(string ipcData)
     {
         cachedIPCData = ipcData;
@@ -67,13 +67,13 @@ public class DevWindow : Window, IDisposable
             {
                 tabToDraw = DrawIPCTester;
             }
-            
+
             ImGui.EndTabBar();
         }
-        
+
         tabToDraw.Invoke();
     }
-    
+
     public void DrawModelTester()
     {
         if (redrawWanted)
@@ -103,18 +103,18 @@ public class DevWindow : Window, IDisposable
     public void DrawIPCTester()
     {
         ImGui.Text("CachedIPCData: " + cachedIPCData);
-        
+
         if (ImGui.Button("Ask Local Data"))
         {
             cachedIPCData = ipcProvider.GetPlayerData();
         }
-        
+
         if (ImGui.Button("Clear Cache Data"))
         {
             cachedIPCData = string.Empty;
         }
     }
-    
+
     public static void Print(string text)
     {
         PrintLines.Add(text);
