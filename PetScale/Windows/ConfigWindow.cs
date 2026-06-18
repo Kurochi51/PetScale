@@ -34,6 +34,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly IPluginLog log;
     private readonly INotificationManager notificationManager;
     private readonly Utilities utilities;
+    private readonly IPCProvider ipcProvider;
     private readonly Dictionary<string, string> comboFilter = [];
     private readonly Dictionary<PetSize, string> sizeMap = new()
     {
@@ -68,7 +69,8 @@ public sealed class ConfigWindow : Window, IDisposable
         IDalamudPluginInterface _pluginInterface,
         IPluginLog _pluginLog,
         INotificationManager _notificationManager,
-        Utilities _utils) : base($"{nameof(PetScale)} Config")
+        Utilities _utils,
+        IPCProvider _ipcProvider) : base($"{nameof(PetScale)} Config")
     {
         plugin = _plugin;
         config = _config;
@@ -76,6 +78,7 @@ public sealed class ConfigWindow : Window, IDisposable
         log = _pluginLog;
         notificationManager = _notificationManager;
         utilities = _utils;
+        ipcProvider = _ipcProvider;
         SizeConstraints = new WindowSizeConstraints()
         {
             MinimumSize = new Vector2(470, 365),
@@ -655,6 +658,7 @@ public sealed class ConfigWindow : Window, IDisposable
             plugin.lastIndexOfOthers = -1;
             if (save)
             {
+                ipcProvider.OnSaveHasChanged();
                 config.Save(pluginInterface);
             }
             return;
@@ -680,6 +684,7 @@ public sealed class ConfigWindow : Window, IDisposable
         if (save)
         {
             config.UpdateConfig();
+            ipcProvider.OnSaveHasChanged();
             config.Save(pluginInterface);
         }
     }
@@ -740,6 +745,7 @@ public sealed class ConfigWindow : Window, IDisposable
             if (ImGui.RadioButton(buttons[i] + "##" + label, ref radioOption, i))
             {
                 setOption(config, radioOption);
+                ipcProvider.OnSaveHasChanged();
                 config.Save(pluginInterface);
             }
             space -= ImGui.CalcTextSize(buttons[i]).X + ImGuiUtils.GetStyleWidth();
