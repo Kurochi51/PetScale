@@ -225,6 +225,7 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
+            log.Debug("BST - {pet}#{model} with scales {small} - {medium} - {large}", pet.Name.GetText(), pet.Unknown8, scales);
             if (presetPetModelMap.ContainsKey((PetRow)pet.RowId))
             {
                 petSizeMap.Add(pet.Name.GetText(), scales);
