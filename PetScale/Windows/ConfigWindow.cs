@@ -51,6 +51,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private const string WorldSelectModal = "World Select";
 
     internal Dictionary<string, PetModel> presetPetMap { get; } = new(StringComparer.Ordinal);
+    internal Dictionary<string, PetModel> beastmasterPetMap { get; } = new(StringComparer.Ordinal);
     internal Dictionary<string, PetModel> customPetMap { get; } = new(StringComparer.Ordinal);
     internal Dictionary<string, string> worldMap { get; } = new(StringComparer.Ordinal);
     private Queue<(string Name, ulong ContentId, ushort HomeWorld)> players => plugin.players;
@@ -130,19 +131,30 @@ public sealed class ConfigWindow : Window, IDisposable
             DevWindow.Print("Filter stuff: " + item.Key + " - " + (item.Value ?? "null"));
         }
 #endif
-        PresetTab();
+        PresetTab(Tab.Summoner);
+        PresetTab(Tab.Beastmaster);
         CustomTab();
         MiscTab();
     }
 
-    private void PresetTab()
+    private void PresetTab(Tab selectedTab)
     {
-        using var generalTab = ImRaii.TabItem("Preset Pets");
+        var tabLabel = selectedTab switch
+        {
+            Tab.Summoner => "Preset Summoner Pets",
+            Tab.Beastmaster => "Preset Beastmaster Pets",
+            _ => "Preset Pets",
+        };
+        using var generalTab = ImRaii.TabItem(tabLabel);
         if (!generalTab)
         {
             return;
         }
-        currentTab = Tab.Summoner;
+        if (currentTab != selectedTab)
+        {
+            petSelection = DefaultPetSelection;
+        }
+        currentTab = selectedTab;
         ImGui.TextUnformatted("Amount of players: " + GetPlayerCount(players.Count, plugin.clientState.IsLoggedIn).ToString(CultureInfo.InvariantCulture));
         var buttonPressed = false;
         if (DrawComboBox("Characters", charaName, charaWidth, out charaName, players.Select(player => player.Name).ToList(), filter: true, newEntryPossible: true))
@@ -154,7 +166,7 @@ public sealed class ConfigWindow : Window, IDisposable
             }
         }
         ImGui.SameLine();
-        DrawComboBox("Pets", petSelection, petWidth, out petSelection, presetPetMap.Keys, filter: false);
+        DrawComboBox("Pets", petSelection, petWidth, out petSelection, selectedTab == Tab.Summoner ? presetPetMap.Keys : beastmasterPetMap.Keys, selectedTab == Tab.Beastmaster);
         ImGui.SameLine();
         DrawComboBox("Sizes", sizeSelection, sizesWidth, out sizeSelection, sizeMap.Values, filter: false);
         ImGui.SameLine();
@@ -517,7 +529,11 @@ public sealed class ConfigWindow : Window, IDisposable
         var currentPetData = new PetStruct()
         {
             CharacterName = altName ?? charaName,
-            PetID = presetPetMap[petSelection],
+            PetID = currentTab switch
+            { 
+                Tab.Summoner => presetPetMap[petSelection],
+                _ => beastmasterPetMap[petSelection],
+            },
             PetSize = currentPetSize.Key,
         };
         if (!altName.IsNullOrWhitespace())
@@ -626,6 +642,15 @@ public sealed class ConfigWindow : Window, IDisposable
             }
         }
         foreach (var petName in customPetMap.Select(pet => pet.Key))
+        {
+            var size = ImGui.CalcTextSize(petName).X;
+            if (size > currentSize)
+            {
+                longestPetName = petName;
+                currentSize = size;
+            }
+        }
+        foreach(var petName in beastmasterPetMap.Select(pet=>pet.Key))
         {
             var size = ImGui.CalcTextSize(petName).X;
             if (size > currentSize)
@@ -782,7 +807,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 CreateNotification("Invalid Character name", "Invalid entry", NotificationType.Error);
                 error = true;
             }
-            if (currentTab is Tab.Summoner && petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
+            if (currentTab is (Tab.Summoner or Tab.Beastmaster) && petSelection.Equals(DefaultPetSelection, StringComparison.Ordinal))
             {
                 CreateNotification("Invalid Pet selected", "Invalid entry", NotificationType.Error);
                 error = true;
@@ -800,7 +825,7 @@ public sealed class ConfigWindow : Window, IDisposable
             }
             if (!error)
             {
-                if (currentTab is Tab.Summoner)
+                if (currentTab is (Tab.Summoner or Tab.Beastmaster))
                 {
                     CheckPossibleEntry(newCharacter);
                 }
@@ -858,4 +883,5 @@ public enum Tab
     None,
     Summoner,
     Others,
+    Beastmaster,
 }

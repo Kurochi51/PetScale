@@ -58,35 +58,6 @@ public sealed class PetScale : IDalamudPlugin
 #endif
     public static FrozenSet<PetModel> petModelSet { get; } = new HashSet<PetModel>((PetModel[])Enum.GetValues(typeof(PetModel))).ToFrozenSet();
     public static bool DrawAvailable { get; private set; }
-
-    internal static Dictionary<PetRow, PetModel> presetPetModelMap { get; } = new()
-    {
-        { PetRow.Bahamut,       PetModel.Bahamut        },
-        { PetRow.Phoenix,       PetModel.Phoenix        },
-        { PetRow.Ifrit,         PetModel.Ifrit          },
-        { PetRow.Titan,         PetModel.Titan          },
-        { PetRow.Garuda,        PetModel.Garuda         },
-        { PetRow.SolarBahamut,  PetModel.SolarBahamut   },
-    };
-
-    internal static Dictionary<PetRow, PetModel> customPetModelMap { get; } = new()
-    {
-        { PetRow.Eos,               PetModel.Eos                },
-        { PetRow.Selene,            PetModel.Selene             },
-        { PetRow.Seraph,            PetModel.Seraph             },
-        { PetRow.Rook,              PetModel.Rook               },
-        { PetRow.AutomatonQueen,    PetModel.AutomatonQueen     },
-        { PetRow.Esteem,            PetModel.Esteem             },
-
-        { PetRow.Carbuncle,         PetModel.Carbuncle          },
-        { PetRow.RubyCarbuncle,     PetModel.RubyCarbuncle      },
-        { PetRow.TopazCarbuncle,    PetModel.TopazCarbuncle     },
-        { PetRow.EmeraldCarbuncle,  PetModel.EmeraldCarbuncle   },
-        { PetRow.IfritEgi,          PetModel.IfritEgi           },
-        { PetRow.TitanEgi,          PetModel.TitanEgi           },
-        { PetRow.GarudaEgi,         PetModel.GarudaEgi          },
-    };
-
     public static WindowSystem WindowSystem { get; } = new("PetScale");
     public Queue<(string Name, ulong ContentId, ushort HomeWorld)> players { get; } = new();
     internal Dictionary<ulong, PetStruct> removedPlayers { get; } = [];
@@ -214,6 +185,7 @@ public sealed class PetScale : IDalamudPlugin
             return;
         }
         ConfigWindow.presetPetMap.Add(nameof(PetModel.AllPets), PetModel.AllPets);
+        ConfigWindow.beastmasterPetMap.Add(nameof(PetModel.AllBeasts), PetModel.AllBeasts);
         foreach (var pet in petSheet)
         {
             if (!Enum.IsDefined((PetRow)pet.RowId))
@@ -221,15 +193,25 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             var scales = (pet.SmallScalePercentage / 100f, pet.MediumScalePercentage / 100f, pet.LargeScalePercentage / 100f);
-            if (scales.Item1 >= 1 || scales.Item2 >= 1)
+            // BST pets seem to have their bestiary number attached in Unknown18
+            if (pet.Unknown18 < 1 && (scales.Item1 >= 1 || scales.Item2 >= 1))
             {
                 continue;
             }
-            log.Debug("BST - {pet}#{model} with scales {small} - {medium} - {large}", pet.Name.GetText(), pet.Unknown8, scales);
-            if (presetPetModelMap.ContainsKey((PetRow)pet.RowId))
+            if (Utilities.presetPetModelMap.ContainsKey((PetRow)pet.RowId))
             {
                 petSizeMap.Add(pet.Name.GetText(), scales);
-                ConfigWindow.presetPetMap.Add(pet.Name.GetText(), presetPetModelMap[(PetRow)pet.RowId]);
+                ConfigWindow.presetPetMap.Add(pet.Name.GetText(), Utilities.presetPetModelMap[(PetRow)pet.RowId]);
+            }
+            // Pet field unk8 is the first PetMirage link, for further reference
+            // pet modelChara -> petMirageSheet.GetRow(pet.Unknown8).ModelChara.RowId
+            // Only really useful for BST pets, the rest are incomplete
+            else if (Utilities.beastmasterPetModelMap.ContainsKey((PetRow)pet.RowId))
+            {
+                var name = pet.Name.GetText();
+                var petName = string.Concat(name.Select((c, i) => i == 0 || name[i - 1] is ' ' or '-' ? char.ToUpperInvariant(c) : c));
+                petSizeMap.Add(petName, scales);
+                ConfigWindow.beastmasterPetMap.Add(petName, Utilities.beastmasterPetModelMap[(PetRow)pet.RowId]);
             }
         }
         // List of pet rows sorted by SCH pets, MCH pets, DRK pet, sub-90 SMN pets then in ascending order
@@ -260,7 +242,7 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            ConfigWindow.customPetMap.Add(currentRow.Value.Name.GetText(), customPetModelMap[(PetRow)currentRow.Value.RowId]);
+            ConfigWindow.customPetMap.Add(currentRow.Value.Name.GetText(), Utilities.customPetModelMap[(PetRow)currentRow.Value.RowId]);
         }
         foreach (var entry in petSizeMap)
         {
@@ -558,7 +540,7 @@ public sealed class PetScale : IDalamudPlugin
 
     internal unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
     {
-        if (presetPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
+        if (Utilities.presetPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
         {
             var scale = userData.PetSize switch
             {
@@ -574,7 +556,7 @@ public sealed class PetScale : IDalamudPlugin
         {
             return false;
         }
-        if (customPetModelMap.ContainsValue(userData.PetID) && userData.PetSize is PetSize.Custom)
+        if (Utilities.customPetModelMap.ContainsValue(userData.PetID) && userData.PetSize is PetSize.Custom)
         {
             var scale = Math.Max(userData.AltPetSize, Utilities.GetDefaultScale(userData.PetID, userData.PetSize));
             Utilities.SetScale(pet, scale);

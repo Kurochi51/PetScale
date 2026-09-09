@@ -38,7 +38,7 @@ public enum PetRow : uint
     CuSith = 47,
     Squirrel = 48,
     Lamb = 49,
-    pugil = 50,
+    Pugil = 50,
     Opo_Opo = 52,
     Dodo = 53,
     Coblyn = 54,
@@ -93,6 +93,7 @@ public enum PetRow : uint
 public enum PetModel
 {
     AllPets = 0,
+    AllBeasts = 1,
     Bahamut = 1930,
     Phoenix = 2620,
     Ifrit = 3122,
@@ -125,7 +126,7 @@ public enum PetModel
     CuSith = 4868,
     Squirrel = 27,
     Lamb = 291,
-    pugil = 861,
+    Pugil = 861,
     Opo_Opo = 32,
     Dodo = 174,
     Coblyn = 178,

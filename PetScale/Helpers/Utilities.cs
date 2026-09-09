@@ -49,6 +49,89 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             PetModel.GarudaEgi,
         ];
 
+    internal static Dictionary<PetRow, PetModel> presetPetModelMap { get; } = new()
+    {
+        { PetRow.Bahamut,       PetModel.Bahamut        },
+        { PetRow.Phoenix,       PetModel.Phoenix        },
+        { PetRow.Ifrit,         PetModel.Ifrit          },
+        { PetRow.Titan,         PetModel.Titan          },
+        { PetRow.Garuda,        PetModel.Garuda         },
+        { PetRow.SolarBahamut,  PetModel.SolarBahamut   },
+    };
+
+    // This one can actually be built at runtime since SE is gracious enough to link back to a PetMirage entry with a ModelChara reference
+    internal static Dictionary<PetRow, PetModel> beastmasterPetModelMap { get; } = new()
+    {
+        { PetRow.CuSith,          PetModel.CuSith               },
+        { PetRow.Squirrel,        PetModel.Squirrel             },
+        { PetRow.Lamb,            PetModel.Lamb                 },
+        { PetRow.Pugil,           PetModel.Pugil                },
+        { PetRow.Opo_Opo,         PetModel.Opo_Opo              },
+        { PetRow.Dodo,            PetModel.Dodo                 },
+        { PetRow.Coblyn,          PetModel.Coblyn               },
+        { PetRow.Diremite,        PetModel.Diremite             },
+        { PetRow.Megalocrab,      PetModel.Megalocrab           },
+        { PetRow.Wespe,           PetModel.Wespe                },
+        { PetRow.Vulture,         PetModel.Vulture              },
+        { PetRow.Mandragora,      PetModel.Mandragora           },
+        { PetRow.Geshunpest,      PetModel.Geshunpest           },
+        { PetRow.Puk,             PetModel.Puk                  },
+        { PetRow.Crab,            PetModel.Crab                 },
+        { PetRow.Mantis,          PetModel.Mantis               },
+        { PetRow.Slime,           PetModel.Slime                },
+        { PetRow.Dullahan,        PetModel.Dullahan             },
+        { PetRow.Bat,             PetModel.Bat                  },
+        { PetRow.Flying_Trap,     PetModel.Flying_Trap          },
+        { PetRow.Ziz,             PetModel.Ziz                  },
+        { PetRow.Sabotender,      PetModel.Sabotender           },
+        { PetRow.Golem,           PetModel.Golem                },
+        { PetRow.Apkallu,         PetModel.Apkallu              },
+        { PetRow.Adamantoise,     PetModel.Adamantoise          },
+        { PetRow.Buffalo,         PetModel.Buffalo              },
+        { PetRow.Uragnite,        PetModel.Uragnite             },
+        { PetRow.Worm,            PetModel.Worm                 },
+        { PetRow.Spriggan,        PetModel.Spriggan             },
+        { PetRow.Goobbue,         PetModel.Goobbue              },
+        { PetRow.Gigantoad,       PetModel.Gigantoad            },
+        { PetRow.Colibri,         PetModel.Colibri              },
+        { PetRow.Coeurl,          PetModel.Coeurl               },
+        { PetRow.Raptor,          PetModel.Raptor               },
+        { PetRow.Drake,           PetModel.Drake                },
+        { PetRow.Treant,          PetModel.Treant               },
+        { PetRow.Antling,         PetModel.Antling              },
+        { PetRow.Chimera,         PetModel.Chimera              },
+        { PetRow.Morbol,          PetModel.Morbol               },
+        { PetRow.Ghost,           PetModel.Ghost                },
+        { PetRow.Salamander,      PetModel.Salamander           },
+        { PetRow.Cobra,           PetModel.Cobra                },
+        { PetRow.Hydra,           PetModel.Hydra                },
+        { PetRow.Damselfly,       PetModel.Damselfly            },
+        { PetRow.Rotting_Goobbue, PetModel.Rotting_Goobbue      },
+        { PetRow.Zu,              PetModel.Zu                   },
+        { PetRow.Ice_Golem,       PetModel.Ice_Golem            },
+        { PetRow.Karlabos,        PetModel.Karlabos             },
+        { PetRow.Rafflesia,       PetModel.Rafflesia            },
+        { PetRow.Behemoth,        PetModel.Behemoth             },
+    };
+
+    internal static Dictionary<PetRow, PetModel> customPetModelMap { get; } = new()
+    {
+        { PetRow.Eos,               PetModel.Eos                },
+        { PetRow.Selene,            PetModel.Selene             },
+        { PetRow.Seraph,            PetModel.Seraph             },
+        { PetRow.Rook,              PetModel.Rook               },
+        { PetRow.AutomatonQueen,    PetModel.AutomatonQueen     },
+        { PetRow.Esteem,            PetModel.Esteem             },
+
+        { PetRow.Carbuncle,         PetModel.Carbuncle          },
+        { PetRow.RubyCarbuncle,     PetModel.RubyCarbuncle      },
+        { PetRow.TopazCarbuncle,    PetModel.TopazCarbuncle     },
+        { PetRow.EmeraldCarbuncle,  PetModel.EmeraldCarbuncle   },
+        { PetRow.IfritEgi,          PetModel.IfritEgi           },
+        { PetRow.TitanEgi,          PetModel.TitanEgi           },
+        { PetRow.GarudaEgi,         PetModel.GarudaEgi          },
+    };
+
     /// <summary>
     ///     Attempt to retrieve an <see cref="ExcelSheet{T}"/>, optionally in a specific <paramref name="language"/>.
     /// </summary>
