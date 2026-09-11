@@ -531,7 +531,7 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             CharacterName = altName ?? charaName,
             PetID = currentTab switch
-            { 
+            {
                 Tab.Summoner => presetPetMap[petSelection],
                 _ => beastmasterPetMap[petSelection],
             },
@@ -651,7 +651,7 @@ public sealed class ConfigWindow : Window, IDisposable
                 currentSize = size;
             }
         }
-        foreach(var petName in beastmasterPetMap.Select(pet=>pet.Key))
+        foreach (var petName in beastmasterPetMap.Select(pet => pet.Key))
         {
             var size = ImGui.CalcTextSize(petName).X;
             if (size > currentSize)

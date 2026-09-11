@@ -48,7 +48,7 @@ public sealed class PetScale : IDalamudPlugin
     private readonly StringComparison ordinalComparison = StringComparison.Ordinal;
     private readonly Dictionary<Pointer<BattleChara>, (Pointer<Character> character, bool petSet)> activePetDictionary = [];
     internal readonly ConcurrentDictionary<int, (uint characterEiD, uint petEiD, bool petSet)> secondaryActivePetDictionary = [];
-    private readonly Dictionary<string, (float smallScale, float mediumScale, float largeScale)> petSizeMap = new(StringComparer.OrdinalIgnoreCase);
+    internal static readonly Dictionary<PetModel, (float smallScale, float mediumScale, float largeScale)> petSizeMap = [];
     public static IDictionary<PetModel, PetSize> vanillaPetSizeMap { get; } = new Dictionary<PetModel, PetSize>();
     private readonly Stopwatch stopwatch = new();
 #if DEBUG
@@ -198,19 +198,20 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            if (Utilities.presetPetModelMap.ContainsKey((PetRow)pet.RowId))
+            if (Utilities.summonerPetModelMap.ContainsKey((PetRow)pet.RowId))
             {
-                petSizeMap.Add(pet.Name.GetText(), scales);
-                ConfigWindow.presetPetMap.Add(pet.Name.GetText(), Utilities.presetPetModelMap[(PetRow)pet.RowId]);
+                petSizeMap.Add(Utilities.summonerPetModelMap[(PetRow)pet.RowId], scales);
+                ConfigWindow.presetPetMap.Add(pet.Name.GetText(), Utilities.summonerPetModelMap[(PetRow)pet.RowId]);
             }
             // Pet field unk8 is the first PetMirage link, for further reference
             // pet modelChara -> petMirageSheet.GetRow(pet.Unknown8).ModelChara.RowId
             // Only really useful for BST pets, the rest are incomplete
+            // Maybe apply the string formating unconditionally?
             else if (Utilities.beastmasterPetModelMap.ContainsKey((PetRow)pet.RowId))
             {
+                petSizeMap.Add(Utilities.beastmasterPetModelMap[(PetRow)pet.RowId], scales);
                 var name = pet.Name.GetText();
                 var petName = string.Concat(name.Select((c, i) => i == 0 || name[i - 1] is ' ' or '-' ? char.ToUpperInvariant(c) : c));
-                petSizeMap.Add(petName, scales);
                 ConfigWindow.beastmasterPetMap.Add(petName, Utilities.beastmasterPetModelMap[(PetRow)pet.RowId]);
             }
         }
@@ -451,7 +452,7 @@ public sealed class PetScale : IDalamudPlugin
             }
             var userData = config.PetData[i];
             // Generic Beast for Generic Character
-            if (allBeasts.Exists(item => item.CharacterName.Equals(userData.CharacterName,ordinalComparison))
+            if (allBeasts.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
                 && userData.PetID is PetModel.AllBeasts)
             {
                 petSet = SetScale(pet, userData, petName);
@@ -479,7 +480,7 @@ public sealed class PetScale : IDalamudPlugin
             config.PetData[i] = userData;
             savePending = true;
             // Generic Beast for Specific Character
-            if (allBeasts.Exists(item=>item.CharacterName.Equals(userData.CharacterName,ordinalComparison))
+            if (allBeasts.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
                 && userData.PetID is PetModel.AllBeasts)
             {
                 petSet = SetScale(pet, userData, petName);
@@ -512,7 +513,7 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             // Generic Beast for Generic Character
-            if (userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item=>item.ContentId == userData.ContentId))
+            if (userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item => item.ContentId == userData.ContentId))
             {
                 petSet = SetScale(pet, userData, petName);
             }
@@ -535,7 +536,7 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             // Generic Beast for Specific Character
-            if(userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item => item.ContentId == userData.ContentId))
+            if (userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item => item.ContentId == userData.ContentId))
             {
                 petSet = SetScale(pet, userData, petName);
             }
@@ -563,13 +564,13 @@ public sealed class PetScale : IDalamudPlugin
 
     internal unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
     {
-        if (Utilities.presetPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
+        if (Utilities.summonerPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
         {
             var scale = userData.PetSize switch
             {
-                PetSize.SmallModelScale => petSizeMap[petName].smallScale,
-                PetSize.MediumModelScale => petSizeMap[petName].mediumScale,
-                PetSize.LargeModelScale => petSizeMap[petName].largeScale,
+                PetSize.SmallModelScale => petSizeMap[(PetModel)pet.Value->ModelContainer.ModelCharaId].smallScale,
+                PetSize.MediumModelScale => petSizeMap[(PetModel)pet.Value->ModelContainer.ModelCharaId].mediumScale,
+                PetSize.LargeModelScale => petSizeMap[(PetModel)pet.Value->ModelContainer.ModelCharaId].largeScale,
                 _ => throw new ArgumentException("Invalid PetSize", paramName: userData.PetSize.ToString()),
             };
             Utilities.SetScale(pet, scale);

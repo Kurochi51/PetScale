@@ -49,7 +49,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             PetModel.GarudaEgi,
         ];
 
-    internal static Dictionary<PetRow, PetModel> presetPetModelMap { get; } = new()
+    internal static Dictionary<PetRow, PetModel> summonerPetModelMap { get; } = new()
     {
         { PetRow.Bahamut,       PetModel.Bahamut        },
         { PetRow.Phoenix,       PetModel.Phoenix        },
@@ -60,6 +60,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
     };
 
     // This one can actually be built at runtime since SE is gracious enough to link back to a PetMirage entry with a ModelChara reference
+    // TODO: Revisit once excel sheets are updated in Evercold.
     internal static Dictionary<PetRow, PetModel> beastmasterPetModelMap { get; } = new()
     {
         { PetRow.CuSith,          PetModel.CuSith               },
@@ -273,23 +274,20 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
     /// Returns a default scale for vfx, preset size, or custom size.
     /// </summary>
     /// <remarks>
-    /// When the provided <paramref name="size"/> is <see cref="PetSize.Custom"/> and the <paramref name="pet"/>
-    /// is one of the SMN pets that use "/petsize", the returned value will correspond to <see cref="PetSize.SmallModelScale"/>,
-    /// unless the player is logged in, which will instead return the in-game value.
+    /// When a <paramref name="size"/> is provided, it will currently dictate which size the BST pets default to,
+    /// otherwise SMN pets will try to use the in-game value then fallback to the small size. Custom pets have their
+    /// own default sizes hardcoded.
+    /// <br>BST pets will default to the small size for now.</br>
     /// </remarks>
     /// <exception cref="ArgumentException"> <see cref="PetModel.AllPets"/> is not an accepted value. </exception>
-    //TODO: This is not a great way to get the default scale, especially if the pet sizes are available in the sheet.
-    public static float GetDefaultScale(PetModel pet, PetSize size, bool vfx = false)
+    public static float GetDefaultScale(PetModel pet, PetSize size = PetSize.SmallModelScale, bool vfx = false)
     {
         if (vfx)
         {
             return GetVfxDefault(pet);
         }
-        if (size is not PetSize.Custom)
-        {
-            return GetPresetSize(pet, size);
-        }
-        if (PetScale.vanillaPetSizeMap.Count is 0)
+        // This would only apply to fairies, mch, drk, and early smn pets
+        if (size is PetSize.Custom)
         {
             return pet switch
             {
@@ -308,42 +306,49 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 PetModel.TitanEgi => 0.35f,
                 PetModel.Seraph => 1.25f,
                 PetModel.AutomatonQueen => 1.3f,
-                PetModel.SolarBahamut => GetDefaultScale(PetModel.SolarBahamut, PetSize.SmallModelScale),
-                PetModel.Bahamut => GetDefaultScale(PetModel.Bahamut, PetSize.SmallModelScale),
-                PetModel.Phoenix => GetDefaultScale(PetModel.Phoenix, PetSize.SmallModelScale),
-                PetModel.Ifrit => GetDefaultScale(PetModel.Ifrit, PetSize.SmallModelScale),
-                PetModel.Titan => GetDefaultScale(PetModel.Titan, PetSize.SmallModelScale),
-                PetModel.Garuda => GetDefaultScale(PetModel.Garuda, PetSize.SmallModelScale),
-                _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
+                _ => throw new ArgumentException("Unsupported PetModel custom size.", pet.ToString()),
+            };
+        }
+        if (!PetScale.petSizeMap.TryGetValue(pet, out var petSize))
+        {
+            throw new ArgumentException("Non-custom sized pet isn't available on the petSizeMap.", pet.ToString());
+        }
+        if (beastmasterPetModelMap.ContainsValue(pet))
+        {
+            return size switch
+            {
+                PetSize.SmallModelScale => petSize.smallScale,
+                PetSize.MediumModelScale => petSize.mediumScale,
+                PetSize.LargeModelScale => petSize.largeScale,
+                _ => throw new ArgumentException("Unsupported PetModel size for BST.", pet.ToString()),
+            };
+        }
+        if (PetScale.vanillaPetSizeMap.TryGetValue(pet, out var vanillaPetSize))
+        {
+            return pet switch
+            {
+                PetModel.SolarBahamut => GetPresetSize(pet, vanillaPetSize),
+                PetModel.Bahamut => GetPresetSize(pet, vanillaPetSize),
+                PetModel.Phoenix => GetPresetSize(pet, vanillaPetSize),
+                PetModel.Ifrit => GetPresetSize(pet, vanillaPetSize),
+                PetModel.Titan => GetPresetSize(pet, vanillaPetSize),
+                PetModel.Garuda => GetPresetSize(pet, vanillaPetSize),
+                _ => throw new ArgumentException("Unsupported PetModel.", pet.ToString()),
             };
         }
         return pet switch
         {
-            PetModel.Eos
-            or PetModel.Selene
-            or PetModel.Carbuncle
-            or PetModel.Esteem
-            or PetModel.RubyCarbuncle
-            or PetModel.TopazCarbuncle
-            or PetModel.EmeraldCarbuncle
-            or PetModel.Rook
-            => 1f,
-            PetModel.GarudaEgi
-            or PetModel.IfritEgi
-            => 0.4f,
-            PetModel.TitanEgi => 0.35f,
-            PetModel.Seraph => 1.25f,
-            PetModel.AutomatonQueen => 1.3f,
-            PetModel.SolarBahamut => GetDefaultScale(PetModel.SolarBahamut, PetScale.vanillaPetSizeMap[PetModel.SolarBahamut]),
-            PetModel.Bahamut => GetDefaultScale(PetModel.Bahamut, PetScale.vanillaPetSizeMap[PetModel.Bahamut]),
-            PetModel.Phoenix => GetDefaultScale(PetModel.Phoenix, PetScale.vanillaPetSizeMap[PetModel.Phoenix]),
-            PetModel.Ifrit => GetDefaultScale(PetModel.Ifrit, PetScale.vanillaPetSizeMap[PetModel.Ifrit]),
-            PetModel.Titan => GetDefaultScale(PetModel.Titan, PetScale.vanillaPetSizeMap[PetModel.Titan]),
-            PetModel.Garuda => GetDefaultScale(PetModel.Garuda, PetScale.vanillaPetSizeMap[PetModel.Garuda]),
-            _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
+            PetModel.SolarBahamut => petSize.smallScale,
+            PetModel.Bahamut => petSize.smallScale,
+            PetModel.Phoenix => petSize.smallScale,
+            PetModel.Ifrit => petSize.smallScale,
+            PetModel.Titan => petSize.smallScale,
+            PetModel.Garuda => petSize.smallScale,
+            _ => throw new ArgumentException("Unsupported PetModel.", pet.ToString()),
         };
     }
 
+    // I don't remember where I got these, or why.
     private static float GetVfxDefault(PetModel pet)
     {
         return pet switch
@@ -369,59 +374,27 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             PetModel.Ifrit => 4f,
             PetModel.Titan => 4f,
             PetModel.Bahamut => 8f,
-            _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
+            _ => throw new ArgumentException("Unsupported VFX for PetModel provided.", pet.ToString()),
         };
     }
 
     private static float GetPresetSize(PetModel pet, PetSize size)
     {
-        switch (size)
+        foreach (var petSize in PetScale.petSizeMap)
         {
-            case PetSize.SmallModelScale:
+            if (petSize.Key != pet)
             {
-                return pet switch
-                {
-                    PetModel.SolarBahamut => 0.13f,
-                    PetModel.Bahamut => 0.1f,
-                    PetModel.Ifrit => 0.25f,
-                    PetModel.Phoenix
-                    or PetModel.Titan
-                    or PetModel.Garuda
-                    => 0.33f,
-                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
-                };
+                continue;
             }
-            case PetSize.MediumModelScale:
+            return size switch
             {
-                return pet switch
-                {
-                    PetModel.SolarBahamut => 0.26f,
-                    PetModel.Bahamut => 0.2f,
-                    PetModel.Ifrit => 0.5f,
-                    PetModel.Phoenix
-                    or PetModel.Titan
-                    or PetModel.Garuda
-                    => 0.66f,
-                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
-                };
-            }
-            case PetSize.LargeModelScale:
-            {
-                return pet switch
-                {
-                    PetModel.SolarBahamut => 0.4f,
-                    PetModel.Bahamut => 0.3f,
-                    PetModel.Ifrit => 0.75f,
-                    PetModel.Phoenix
-                    or PetModel.Titan
-                    or PetModel.Garuda
-                    => 1f,
-                    _ => throw new ArgumentException("Invalid PetModel provided.", pet.ToString()),
-                };
-            }
-            default:
-                throw new ArgumentException("Invalid PetSize provided.", size.ToString());
+                PetSize.SmallModelScale => petSize.Value.smallScale,
+                PetSize.MediumModelScale => petSize.Value.mediumScale,
+                PetSize.LargeModelScale => petSize.Value.largeScale,
+                _ => throw new ArgumentException("Unsupported PetModel size for BST.", pet.ToString()),
+            };
         }
+        throw new ArgumentException("Invalid PetModel provided.", pet.ToString());
     }
 
     public static unsafe void CheckPetRemoval(IDictionary<ulong, PetStruct> removalQueue, IDictionary<int, (uint characterEiD, uint petEiD)> activePlayers)
@@ -444,9 +417,9 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     continue;
                 }
-                if (removedPlayer.Value.PetID is (PetModel.AllPets or PetModel.AllBeasts) && PetScale.vanillaPetSizeMap.TryGetValue((PetModel)pet->ModelContainer.ModelCharaId, out var size))
+                if (removedPlayer.Value.PetID is (PetModel.AllPets or PetModel.AllBeasts))
                 {
-                    SetScale(pet, GetDefaultScale((PetModel)pet->ModelContainer.ModelCharaId, size));
+                    SetScale(pet, GetDefaultScale((PetModel)pet->ModelContainer.ModelCharaId));
                     removalQueue.Remove(removedPlayer);
                     continue;
                 }
@@ -460,7 +433,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                     removalQueue.Remove(removedPlayer);
                     continue;
                 }
-                SetScale(pet, GetDefaultScale(removedPlayer.Value.PetID, PetScale.vanillaPetSizeMap[(PetModel)pet->ModelContainer.ModelCharaId]));
+                SetScale(pet, GetDefaultScale(removedPlayer.Value.PetID));
                 removalQueue.Remove(removedPlayer);
             }
         }
@@ -511,9 +484,9 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     continue;
                 }
-                if (data.PetID is (PetModel.AllPets or PetModel.AllBeasts) && PetScale.vanillaPetSizeMap.TryGetValue(petModel, out var size))
+                if (data.PetID is (PetModel.AllPets or PetModel.AllBeasts))
                 {
-                    SetScale(pet, GetDefaultScale(petModel, size));
+                    SetScale(pet, GetDefaultScale(petModel));
                     continue;
                 }
                 if (petModel != data.PetID)
@@ -525,7 +498,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                     SetScale(pet, GetDefaultScale(data.PetID, data.PetSize));
                     continue;
                 }
-                SetScale(pet, GetDefaultScale(data.PetID, PetScale.vanillaPetSizeMap[petModel]));
+                SetScale(pet, GetDefaultScale(data.PetID));
             }
         }
     }

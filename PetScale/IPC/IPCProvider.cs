@@ -135,7 +135,7 @@ public class IPCProvider
                     }
                     Utilities.SetScale(petToClean,
                         Utilities.GetDefaultScale((PetModel)petToClean->ModelContainer.ModelCharaId,
-                        PetScale.vanillaPetSizeMap[(PetModel)petToClean->ModelContainer.ModelCharaId]));
+                        PetSize.SmallModelScale));
                 }
             });
         }
