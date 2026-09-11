@@ -62,6 +62,7 @@ public class IPCProvider
 
     public IPCProvider(Configuration _config, IPlayerState _localPlayer, IDalamudPluginInterface _pluginInterface, PetScale _plugin, IPluginLog _log, IFramework _framework, IObjectTable _objectTable)
     {
+        return;
         config = _config;
         playerState = _localPlayer;
         plugin = _plugin;
@@ -152,6 +153,7 @@ public class IPCProvider
 
     internal void OnSaveHasChanged()
     {
+        return;
         RefreshPlayerData();
 
         if (!dataHasChanged)
