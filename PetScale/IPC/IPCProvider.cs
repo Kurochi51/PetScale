@@ -235,7 +235,7 @@ public class IPCProvider
             }
             foreach (var data in petData)
             {
-                if (data.PetID is PetModel.AllPets)
+                if (data.PetID is (PetModel.AllPets or PetModel.AllBeasts))
                 {
                     petFound = plugin.SetScale(pet, data, pet->NameString);
                     plugin.secondaryActivePetDictionary[player.Key] = (player.Value.characterEiD, player.Value.petEiD, true);
@@ -280,7 +280,7 @@ public class IPCProvider
             var hash = pet.Value->EntityId.GetHashCode() ^ ((petOwner->EntityId.GetHashCode() << 16) | (petOwner->EntityId.GetHashCode() >> (32 - 16)));
             foreach (var data in petData)
             {
-                if (data.PetID is PetModel.AllPets)
+                if (data.PetID is (PetModel.AllPets or PetModel.AllBeasts))
                 {
                     petFound = plugin.SetScale(pet, data, pet.Value->NameString);
                     plugin.secondaryActivePetDictionary.TryAdd(hash, (petOwner->EntityId, pet.Value->EntityId, petFound));

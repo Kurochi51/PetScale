@@ -460,6 +460,7 @@ public sealed class ConfigWindow : Window, IDisposable
         return itemSelected;
     }
 
+    // TODO: Generic pets aren't supported for Other Pets, fully remove it, or add it 
     private void CheckOtherPossibleEntry(string? altName = null)
     {
         var tempDic = players.ToDictionary(player => player.Name, cid => (cid.ContentId, cid.HomeWorld), StringComparer.Ordinal);
@@ -544,7 +545,7 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             currentPetData.ContentId = cid;
         }
-        if (currentPetData.PetID is PetModel.AllPets)
+        if (currentPetData.PetID is (PetModel.AllPets or PetModel.AllBeasts))
         {
             currentPetData.Generic = true;
         }
@@ -570,7 +571,7 @@ public sealed class ConfigWindow : Window, IDisposable
             if (checkPet.UpdateRequired())
             {
                 checkPet.ContentId = cid;
-                if (checkPet.PetID is PetModel.AllPets)
+                if (checkPet.PetID is (PetModel.AllPets or PetModel.AllBeasts))
                 {
                     checkPet.Generic = true;
                 }

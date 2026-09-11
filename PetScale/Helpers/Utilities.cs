@@ -278,6 +278,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
     /// unless the player is logged in, which will instead return the in-game value.
     /// </remarks>
     /// <exception cref="ArgumentException"> <see cref="PetModel.AllPets"/> is not an accepted value. </exception>
+    //TODO: This is not a great way to get the default scale, especially if the pet sizes are available in the sheet.
     public static float GetDefaultScale(PetModel pet, PetSize size, bool vfx = false)
     {
         if (vfx)
@@ -443,7 +444,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     continue;
                 }
-                if (removedPlayer.Value.PetID is PetModel.AllPets && PetScale.vanillaPetSizeMap.TryGetValue((PetModel)pet->ModelContainer.ModelCharaId, out var size))
+                if (removedPlayer.Value.PetID is (PetModel.AllPets or PetModel.AllBeasts) && PetScale.vanillaPetSizeMap.TryGetValue((PetModel)pet->ModelContainer.ModelCharaId, out var size))
                 {
                     SetScale(pet, GetDefaultScale((PetModel)pet->ModelContainer.ModelCharaId, size));
                     removalQueue.Remove(removedPlayer);
@@ -510,7 +511,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     continue;
                 }
-                if (data.PetID is PetModel.AllPets && PetScale.vanillaPetSizeMap.TryGetValue(petModel, out var size))
+                if (data.PetID is (PetModel.AllPets or PetModel.AllBeasts) && PetScale.vanillaPetSizeMap.TryGetValue(petModel, out var size))
                 {
                     SetScale(pet, GetDefaultScale(petModel, size));
                     continue;

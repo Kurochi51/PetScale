@@ -349,6 +349,7 @@ public sealed class PetScale : IDalamudPlugin
     private unsafe void ParseDictionary(uint playerEntityId)
     {
         var allPets = config.PetData.Where(userData => userData.PetID is PetModel.AllPets).ToList();
+        var allBeasts = config.PetData.Where(userData => userData.PetID is PetModel.AllBeasts).ToList();
         foreach (var entry in secondaryActivePetDictionary)
         {
             if (entry.Value.petSet)
@@ -403,7 +404,7 @@ public sealed class PetScale : IDalamudPlugin
                 }
             }
 
-            if (ParseStruct(pet, &character->Character, pet->ModelContainer.ModelCharaId, character->EntityId == playerEntityId, allPets))
+            if (ParseStruct(pet, &character->Character, pet->ModelContainer.ModelCharaId, character->EntityId == playerEntityId, allPets, allBeasts))
             {
                 secondaryActivePetDictionary[entry.Key] = (entry.Value.characterEiD, entry.Value.petEiD, true);
             }
@@ -417,7 +418,7 @@ public sealed class PetScale : IDalamudPlugin
         }
     }
 
-    private unsafe bool ParseStruct(BattleChara* pet, Character* character, int modelId, bool isLocalPlayer, List<PetStruct> allPets)
+    private unsafe bool ParseStruct(BattleChara* pet, Character* character, int modelId, bool isLocalPlayer, List<PetStruct> allPets, List<PetStruct> allBeasts)
     {
         if (!petModelSet.Contains((PetModel)modelId))
         {
@@ -425,8 +426,8 @@ public sealed class PetScale : IDalamudPlugin
         }
         var savePending = false;
         var petSet = config.UpdateNeeded
-            ? OldParse(pet, character, isLocalPlayer, allPets, (PetModel)modelId, out savePending)
-            : NewParse(pet, character, isLocalPlayer, allPets, (PetModel)modelId);
+            ? OldParse(pet, character, isLocalPlayer, allPets, allBeasts, (PetModel)modelId, out savePending)
+            : NewParse(pet, character, isLocalPlayer, allPets, allBeasts, (PetModel)modelId);
         if (savePending)
         {
             config.UpdateNeeded = config.PetData.Any(data => data.UpdateRequired());
@@ -436,7 +437,7 @@ public sealed class PetScale : IDalamudPlugin
         return petSet;
     }
 
-    private unsafe bool OldParse(BattleChara* pet, Character* character, bool isLocalPlayer, List<PetStruct> allPets, PetModel modelType, out bool savePending)
+    private unsafe bool OldParse(BattleChara* pet, Character* character, bool isLocalPlayer, List<PetStruct> allPets, List<PetStruct> allBeasts, PetModel modelType, out bool savePending)
     {
         var petSet = false;
         savePending = false;
@@ -449,13 +450,19 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             var userData = config.PetData[i];
-            // General Pet for General Character
+            // Generic Beast for Generic Character
+            if (allBeasts.Exists(item => item.CharacterName.Equals(userData.CharacterName,ordinalComparison))
+                && userData.PetID is PetModel.AllBeasts)
+            {
+                petSet = SetScale(pet, userData, petName);
+            }
+            // Generic Pet for Generic Character
             if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
                 && userData.PetID is PetModel.AllPets)
             {
                 petSet = SetScale(pet, userData, petName);
             }
-            // Specific Pet for General Character
+            // Specific Pet/Beast for Generic Character
             if (userData.PetID == modelType)
             {
                 petSet = SetScale(pet, userData, petName);
@@ -471,13 +478,19 @@ public sealed class PetScale : IDalamudPlugin
             userData.UpdateData(character->HomeWorld, character->ContentId);
             config.PetData[i] = userData;
             savePending = true;
-            // General Pet for Specific Character
+            // Generic Beast for Specific Character
+            if (allBeasts.Exists(item=>item.CharacterName.Equals(userData.CharacterName,ordinalComparison))
+                && userData.PetID is PetModel.AllBeasts)
+            {
+                petSet = SetScale(pet, userData, petName);
+            }
+            // Generic Pet for Specific Character
             if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
                 && userData.PetID is PetModel.AllPets)
             {
                 petSet = SetScale(pet, userData, petName);
             }
-            // Specific Pet for Specific Character
+            // Specific Pet/Beast for Specific Character
             if (userData.PetID == modelType)
             {
                 petSet = SetScale(pet, userData, petName);
@@ -486,7 +499,7 @@ public sealed class PetScale : IDalamudPlugin
         return petSet;
     }
 
-    private unsafe bool NewParse(BattleChara* pet, Character* character, bool isLocalPlayer, List<PetStruct> allPets, PetModel modelType)
+    private unsafe bool NewParse(BattleChara* pet, Character* character, bool isLocalPlayer, List<PetStruct> allPets, List<PetStruct> allBeasts, PetModel modelType)
     {
         var petSet = false;
         var petName = pet->NameString;
@@ -498,12 +511,17 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            // General Pet for General Character
+            // Generic Beast for Generic Character
+            if (userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item=>item.ContentId == userData.ContentId))
+            {
+                petSet = SetScale(pet, userData, petName);
+            }
+            // Generic Pet for Generic Character
             if (userData.PetID is PetModel.AllPets && allPets.Exists(item => item.ContentId == userData.ContentId))
             {
                 petSet = SetScale(pet, userData, petName);
             }
-            // Specific Pet for General Character
+            // Specific Pet/Beast for Generic Character
             if (userData.PetID == modelType)
             {
                 petSet = SetScale(pet, userData, petName);
@@ -516,12 +534,17 @@ public sealed class PetScale : IDalamudPlugin
             {
                 continue;
             }
-            // General Pet for Specific Character
+            // Generic Beast for Specific Character
+            if(userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item => item.ContentId == userData.ContentId))
+            {
+                petSet = SetScale(pet, userData, petName);
+            }
+            // Generic Pet for Specific Character
             if (userData.PetID is PetModel.AllPets && allPets.Exists(item => item.ContentId == userData.ContentId))
             {
                 petSet = SetScale(pet, userData, petName);
             }
-            // Specific Pet for Specific Character
+            // Specific Pet/Beast for Specific Character
             if (userData.PetID == modelType)
             {
                 petSet = SetScale(pet, userData, petName);
@@ -615,6 +638,11 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             DevWindow.Print($"Pet: {petName->NameString} - Character: {charaName->NameString} - Scale: {petName->Scale} -  Set: {kvp.Value.petSet}");
+        }
+        DevWindow.Print($"Vanilla pet size map count: {vanillaPetSizeMap.Count}");
+        foreach (var kvp in vanillaPetSizeMap)
+        {
+            DevWindow.Print($"{kvp.Key} - {kvp.Value}");
         }
         /*DevWindow.Print("Actor pair count: " + activePetDictionary.Count.ToString());
         foreach (var entry in petModelDic)

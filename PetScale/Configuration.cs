@@ -25,7 +25,7 @@ public class Configuration : IPluginConfiguration
             {
                 PetData[i] = PetData[i] with { Generic = true, ContentId = PetScale.OthersContendId, HomeWorld = PetScale.OthersHomeWorld };
             }
-            else if (PetData[i].PetID is PetModel.AllPets)
+            else if (PetData[i].PetID is (PetModel.AllPets or PetModel.AllBeasts))
             {
                 PetData[i] = PetData[i] with { Generic = true };
             }
