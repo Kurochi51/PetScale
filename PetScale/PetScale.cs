@@ -537,12 +537,12 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             // Generic Beast for Specific Character
-            if (userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item => item.ContentId == userData.ContentId))
+            if (userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item => item.ContentId == userData.ContentId) && Utilities.beastmasterPetModelMap.ContainsValue(modelType))
             {
                 petSet = SetScale(pet, userData, petName);
             }
             // Generic Pet for Specific Character
-            if (userData.PetID is PetModel.AllPets && allPets.Exists(item => item.ContentId == userData.ContentId))
+            if (userData.PetID is PetModel.AllPets && allPets.Exists(item => item.ContentId == userData.ContentId) && Utilities.summonerPetModelMap.ContainsValue(modelType))
             {
                 petSet = SetScale(pet, userData, petName);
             }

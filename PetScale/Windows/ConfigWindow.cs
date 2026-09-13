@@ -302,7 +302,7 @@ public sealed class ConfigWindow : Window, IDisposable
         }
         else if (currentTab is Tab.Beastmaster)
         {
-            petList = petData.Where(item => item.PetSize is not PetSize.Custom && (Utilities.beastmasterPetModelMap.ContainsValue(item.PetID) || item.PetID is PetModel.AllBeasts)).ToList();
+            petList = petData.Where(item => item.PetSize is not PetSize.Custom && (Utilities.beastmasterPetModels.Contains(item.PetID) || item.PetID is PetModel.AllBeasts)).ToList();
         }
         var clipperCount = petList.Count;
         Utilities.SortList(ref petList, customSize);
@@ -432,6 +432,7 @@ public sealed class ConfigWindow : Window, IDisposable
         if (DrawClippedList(itemCount, current, tempList, out result))
         {
             itemSelected = true;
+            comboFilter.Clear();
         }
         return itemSelected;
     }

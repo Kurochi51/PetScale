@@ -61,58 +61,58 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
 
     // This one can actually be built at runtime since SE is gracious enough to link back to a PetMirage entry with a ModelChara reference
     // TODO: Revisit once excel sheets are updated in Evercold.
-    internal static Dictionary<PetRow, PetModel> beastmasterPetModelMap { get; } = new()
+    internal static Dictionary<PetRow, (PetModel normal, PetModel alt1)> beastmasterPetMap { get; } = new()
     {
-        { PetRow.CuSith,          PetModel.CuSith               },
-        { PetRow.Squirrel,        PetModel.Squirrel             },
-        { PetRow.Lamb,            PetModel.Lamb                 },
-        { PetRow.Pugil,           PetModel.Pugil                },
-        { PetRow.Opo_Opo,         PetModel.Opo_Opo              },
-        { PetRow.Dodo,            PetModel.Dodo                 },
-        { PetRow.Coblyn,          PetModel.Coblyn               },
-        { PetRow.Diremite,        PetModel.Diremite             },
-        { PetRow.Megalocrab,      PetModel.Megalocrab           },
-        { PetRow.Wespe,           PetModel.Wespe                },
-        { PetRow.Vulture,         PetModel.Vulture              },
-        { PetRow.Mandragora,      PetModel.Mandragora           },
-        { PetRow.Geshunpest,      PetModel.Geshunpest           },
-        { PetRow.Puk,             PetModel.Puk                  },
-        { PetRow.Crab,            PetModel.Crab                 },
-        { PetRow.Mantis,          PetModel.Mantis               },
-        { PetRow.Slime,           PetModel.Slime                },
-        { PetRow.Dullahan,        PetModel.Dullahan             },
-        { PetRow.Bat,             PetModel.Bat                  },
-        { PetRow.Flying_Trap,     PetModel.Flying_Trap          },
-        { PetRow.Ziz,             PetModel.Ziz                  },
-        { PetRow.Sabotender,      PetModel.Sabotender           },
-        { PetRow.Golem,           PetModel.Golem                },
-        { PetRow.Apkallu,         PetModel.Apkallu              },
-        { PetRow.Adamantoise,     PetModel.Adamantoise          },
-        { PetRow.Buffalo,         PetModel.Buffalo              },
-        { PetRow.Uragnite,        PetModel.Uragnite             },
-        { PetRow.Worm,            PetModel.Worm                 },
-        { PetRow.Spriggan,        PetModel.Spriggan             },
-        { PetRow.Goobbue,         PetModel.Goobbue              },
-        { PetRow.Gigantoad,       PetModel.Gigantoad            },
-        { PetRow.Colibri,         PetModel.Colibri              },
-        { PetRow.Coeurl,          PetModel.Coeurl               },
-        { PetRow.Raptor,          PetModel.Raptor               },
-        { PetRow.Drake,           PetModel.Drake                },
-        { PetRow.Treant,          PetModel.Treant               },
-        { PetRow.Antling,         PetModel.Antling              },
-        { PetRow.Chimera,         PetModel.Chimera              },
-        { PetRow.Morbol,          PetModel.Morbol               },
-        { PetRow.Ghost,           PetModel.Ghost                },
-        { PetRow.Salamander,      PetModel.Salamander           },
-        { PetRow.Cobra,           PetModel.Cobra                },
-        { PetRow.Hydra,           PetModel.Hydra                },
-        { PetRow.Damselfly,       PetModel.Damselfly            },
-        { PetRow.Rotting_Goobbue, PetModel.Rotting_Goobbue      },
-        { PetRow.Zu,              PetModel.Zu                   },
-        { PetRow.Ice_Golem,       PetModel.Ice_Golem            },
-        { PetRow.Karlabos,        PetModel.Karlabos             },
-        { PetRow.Rafflesia,       PetModel.Rafflesia            },
-        { PetRow.Behemoth,        PetModel.Behemoth             },
+        { PetRow.CuSith,            (PetModel.CuSith,           PetModel.CuSith_Alt)            },
+        { PetRow.Squirrel,          (PetModel.Squirrel,         PetModel.Squirrel_Alt)          },
+        { PetRow.Lamb,              (PetModel.Lamb,             PetModel.Lamb_Alt)              },
+        { PetRow.Pugil,             (PetModel.Pugil,            PetModel.Pugil_Alt)             },
+        { PetRow.Opo_Opo,           (PetModel.Opo_Opo,          PetModel.Opo_Opo_Alt)           },
+        { PetRow.Dodo,              (PetModel.Dodo,             PetModel.Dodo_Alt)              },
+        { PetRow.Coblyn,            (PetModel.Coblyn,           PetModel.Coblyn_Alt)            },
+        { PetRow.Diremite,          (PetModel.Diremite,         PetModel.Diremite_Alt)          },
+        { PetRow.Megalocrab,        (PetModel.Megalocrab,       PetModel.Megalocrab_Alt)        },
+        { PetRow.Wespe,             (PetModel.Wespe,            PetModel.Wespe_Alt)             },
+        { PetRow.Vulture,           (PetModel.Vulture,          PetModel.Vulture_Alt)           },
+        { PetRow.Mandragora,        (PetModel.Mandragora,       PetModel.Mandragora_Alt)        },
+        { PetRow.Geshunpest,        (PetModel.Geshunpest,       PetModel.Geshunpest_Alt)        },
+        { PetRow.Puk,               (PetModel.Puk,              PetModel.Puk_Alt)               },
+        { PetRow.Crab,              (PetModel.Crab,             PetModel.Crab_Alt)              },
+        { PetRow.Mantis,            (PetModel.Mantis,           PetModel.Mantis_Alt)            },
+        { PetRow.Slime,             (PetModel.Slime,            PetModel.Slime_Alt)             },
+        { PetRow.Dullahan,          (PetModel.Dullahan,         PetModel.Dullahan_Alt)          },
+        { PetRow.Bat,               (PetModel.Bat,              PetModel.Bat_Alt)               },
+        { PetRow.Flying_Trap,       (PetModel.Flying_Trap,      PetModel.Flying_Trap_Alt)       },
+        { PetRow.Ziz,               (PetModel.Ziz,              PetModel.Ziz_Alt)               },
+        { PetRow.Sabotender,        (PetModel.Sabotender,       PetModel.Sabotender_Alt)        },
+        { PetRow.Golem,             (PetModel.Golem,            PetModel.Golem_Alt)             },
+        { PetRow.Apkallu,           (PetModel.Apkallu,          PetModel.Apkallu_Alt)           },
+        { PetRow.Adamantoise,       (PetModel.Adamantoise,      PetModel.Adamantoise_Alt)       },
+        { PetRow.Buffalo,           (PetModel.Buffalo,          PetModel.Buffalo_Alt)           },
+        { PetRow.Uragnite,          (PetModel.Uragnite,         PetModel.Uragnite_Alt)          },
+        { PetRow.Worm,              (PetModel.Worm,             PetModel.Worm_Alt)              },
+        { PetRow.Spriggan,          (PetModel.Spriggan,         PetModel.Spriggan_Alt)          },
+        { PetRow.Goobbue,           (PetModel.Goobbue,          PetModel.Goobbue_Alt)           },
+        { PetRow.Gigantoad,         (PetModel.Gigantoad,        PetModel.Gigantoad_Alt)         },
+        { PetRow.Colibri,           (PetModel.Colibri,          PetModel.Colibri_Alt)           },
+        { PetRow.Coeurl,            (PetModel.Coeurl,           PetModel.Coeurl_Alt)            },
+        { PetRow.Raptor,            (PetModel.Raptor,           PetModel.Raptor_Alt)            },
+        { PetRow.Drake,             (PetModel.Drake,            PetModel.Drake_Alt)             },
+        { PetRow.Treant,            (PetModel.Treant,           PetModel.Treant_Alt)            },
+        { PetRow.Antling,           (PetModel.Antling,          PetModel.Antling_Alt)           },
+        { PetRow.Chimera,           (PetModel.Chimera,          PetModel.Chimera_Alt)           },
+        { PetRow.Morbol,            (PetModel.Morbol,           PetModel.Morbol_Alt)            },
+        { PetRow.Ghost,             (PetModel.Ghost,            PetModel.Ghost_Alt)             },
+        { PetRow.Salamander,        (PetModel.Salamander,       PetModel.Salamander_Alt)        },
+        { PetRow.Cobra,             (PetModel.Cobra,            PetModel.Cobra_Alt)             },
+        { PetRow.Hydra,             (PetModel.Hydra,            PetModel.Hydra_Alt)             },
+        { PetRow.Damselfly,         (PetModel.Damselfly,        PetModel.Damselfly_Alt)         },
+        { PetRow.Rotting_Goobbue,   (PetModel.Rotting_Goobbue,  PetModel.Rotting_Goobbue_Alt)   },
+        { PetRow.Zu,                (PetModel.Zu,               PetModel.Zu_Alt)                },
+        { PetRow.Ice_Golem,         (PetModel.Ice_Golem,        PetModel.Ice_Golem_Alt)         },
+        { PetRow.Karlabos,          (PetModel.Karlabos,         PetModel.Karlabos_Alt)          },
+        { PetRow.Rafflesia,         (PetModel.Rafflesia,        PetModel.Rafflesia_Alt)         },
+        { PetRow.Behemoth,          (PetModel.Behemoth,         PetModel.Behemoth_Alt)          },
     };
 
     internal static Dictionary<PetRow, PetModel> customPetModelMap { get; } = new()
@@ -132,6 +132,8 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         { PetRow.TitanEgi,          PetModel.TitanEgi           },
         { PetRow.GarudaEgi,         PetModel.GarudaEgi          },
     };
+
+    internal static HashSet<PetModel> beastmasterPetModels = [.. beastmasterPetMap.Values.SelectMany(row => new[] { row.normal, row.alt1 })];
 
     /// <summary>
     ///     Attempt to retrieve an <see cref="ExcelSheet{T}"/>, optionally in a specific <paramref name="language"/>.
@@ -309,7 +311,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 _ => throw new ArgumentException("Unsupported custom PetModel.", pet.ToString()),
             };
         }
-        if (beastmasterPetModelMap.ContainsValue(pet))
+        if (beastmasterPetModels.Contains(pet))
         {
             return size switch
             {
@@ -413,6 +415,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 {
                     continue;
                 }
+                log.Debug("Pet waiting to get reset: {name} - {model}", pet->NameString, (PetModel)pet->ModelContainer.ModelCharaId);
                 if (removedPlayer.Value.PetID is (PetModel.AllPets or PetModel.AllBeasts))
                 {
                     SetScale(pet, GetDefaultScale((PetModel)pet->ModelContainer.ModelCharaId));
@@ -474,6 +477,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             {
                 continue;
             }
+            log.Debug("Pet waiting to get reset: {name} - {model}", pet->NameString, petModel);
             foreach (var data in userData)
             {
                 if (data.ContentId != character->ContentId && !data.Generic)
