@@ -141,8 +141,8 @@ public sealed class ConfigWindow : Window, IDisposable
     {
         var tabLabel = selectedTab switch
         {
-            Tab.Summoner => "Preset Summoner Pets",
-            Tab.Beastmaster => "Preset Beastmaster Pets",
+            Tab.Summoner => "Summoner Pets",
+            Tab.Beastmaster => "Beastmaster Pets",
             _ => "Preset Pets",
         };
         using var generalTab = ImRaii.TabItem(tabLabel);

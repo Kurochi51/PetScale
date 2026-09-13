@@ -522,6 +522,8 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         gConfig.TryGet(UiConfigOption.IfritSize, out uint ifritSize);
         gConfig.TryGet(UiConfigOption.TitanSize, out uint titanSize);
         gConfig.TryGet(UiConfigOption.GarudaSize, out uint garudaSize);
+        //XBMNoteModule.Instance()->GetPetSize(petId)
+        //That returns the 0 - small, 1 - medium, 2 - large size of a BST pet, petId seems to correspond to the rowId of said pet in XBMPet sheet
 
         sizeMap.TryAdd(PetModel.SolarBahamut, GetVanillaPetSize(solBahamutSize));
         sizeMap.TryAdd(PetModel.Phoenix, GetVanillaPetSize(phoenixSize));

@@ -298,6 +298,7 @@ public class IPCProvider
 
     internal void Dispose()
     {
+        return;
         ready = false;
 
         Disposing.SendMessage();
