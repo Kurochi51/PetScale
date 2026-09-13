@@ -291,8 +291,20 @@ public sealed class ConfigWindow : Window, IDisposable
         {
             return;
         }
-        var clipperCount = customSize ? petData.Count(item => item.PetSize is PetSize.Custom) : petData.Count(item => item.PetSize is not PetSize.Custom);
-        var petList = customSize ? petData.Where(item => item.PetSize is PetSize.Custom).ToList() : petData.Where(item => item.PetSize is not PetSize.Custom).ToList();
+        List<PetStruct> petList = [];
+        if (customSize)
+        {
+            petList = petData.Where(item => item.PetSize is PetSize.Custom).ToList();
+        }
+        else if (currentTab is Tab.Summoner)
+        {
+            petList = petData.Where(item => item.PetSize is not PetSize.Custom && (Utilities.summonerPetModelMap.ContainsValue(item.PetID) || item.PetID is PetModel.AllPets)).ToList();
+        }
+        else if (currentTab is Tab.Beastmaster)
+        {
+            petList = petData.Where(item => item.PetSize is not PetSize.Custom && (Utilities.beastmasterPetModelMap.ContainsValue(item.PetID) || item.PetID is PetModel.AllBeasts)).ToList();
+        }
+        var clipperCount = petList.Count;
         Utilities.SortList(ref petList, customSize);
         ImGui.TableSetupColumn("Character", ImGuiTableColumnFlags.WidthFixed, charaWidth);
         ImGui.TableSetupColumn("Pet", ImGuiTableColumnFlags.WidthFixed, petWidth);
