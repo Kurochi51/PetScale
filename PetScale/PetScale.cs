@@ -208,12 +208,12 @@ public sealed class PetScale : IDalamudPlugin
             // pet modelChara -> petMirageSheet.GetRow(pet.Unknown8).ModelChara.RowId
             // Only really useful for BST pets, the rest are incomplete
             // Maybe apply the string formating unconditionally?
-            else if (Utilities.beastmasterPetModelMap.ContainsKey((PetRow)pet.RowId))
+            else if (Utilities.beastmasterPetMap.ContainsKey((PetRow)pet.RowId))
             {
-                petSizeMap.Add(Utilities.beastmasterPetModelMap[(PetRow)pet.RowId], scales);
+                petSizeMap.Add(Utilities.beastmasterPetMap[(PetRow)pet.RowId].normal, scales);
                 var name = pet.Name.GetText();
                 var petName = string.Concat(name.Select((c, i) => i == 0 || name[i - 1] is ' ' or '-' ? char.ToUpperInvariant(c) : c));
-                ConfigWindow.beastmasterPetMap.Add(petName, Utilities.beastmasterPetModelMap[(PetRow)pet.RowId]);
+                ConfigWindow.beastmasterPetMap.Add(petName, Utilities.beastmasterPetMap[(PetRow)pet.RowId].normal);
             }
         }
         // List of pet rows sorted by SCH pets, MCH pets, DRK pet, sub-90 SMN pets then in ascending order
@@ -537,7 +537,7 @@ public sealed class PetScale : IDalamudPlugin
                 continue;
             }
             // Generic Beast for Specific Character
-            if (userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item => item.ContentId == userData.ContentId) && Utilities.beastmasterPetModelMap.ContainsValue(modelType))
+            if (userData.PetID is PetModel.AllBeasts && allBeasts.Exists(item => item.ContentId == userData.ContentId) && Utilities.beastmasterPetModels.Contains(modelType))
             {
                 petSet = SetScale(pet, userData, petName);
             }
@@ -565,8 +565,8 @@ public sealed class PetScale : IDalamudPlugin
 
     internal unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
     {
-        if (Utilities.summonerPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId) 
-            || Utilities.beastmasterPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
+        if (Utilities.summonerPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId)
+            || Utilities.beastmasterPetModels.Contains((PetModel)pet.Value->ModelContainer.ModelCharaId))
         {
             var scale = userData.PetSize switch
             {
