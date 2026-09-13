@@ -287,7 +287,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
             return GetVfxDefault(pet);
         }
         // This would only apply to fairies, mch, drk, and early smn pets
-        if (size is PetSize.Custom)
+        if (size is PetSize.Custom || !PetScale.petSizeMap.TryGetValue(pet, out var petSize))
         {
             return pet switch
             {
@@ -306,12 +306,8 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
                 PetModel.TitanEgi => 0.35f,
                 PetModel.Seraph => 1.25f,
                 PetModel.AutomatonQueen => 1.3f,
-                _ => throw new ArgumentException("Unsupported PetModel custom size.", pet.ToString()),
+                _ => throw new ArgumentException("Unsupported custom PetModel.", pet.ToString()),
             };
-        }
-        if (!PetScale.petSizeMap.TryGetValue(pet, out var petSize))
-        {
-            throw new ArgumentException("Non-custom sized pet isn't available on the petSizeMap.", pet.ToString());
         }
         if (beastmasterPetModelMap.ContainsValue(pet))
         {
@@ -397,7 +393,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         throw new ArgumentException("Invalid PetModel provided.", pet.ToString());
     }
 
-    public static unsafe void CheckPetRemoval(IDictionary<ulong, PetStruct> removalQueue, IDictionary<int, (uint characterEiD, uint petEiD)> activePlayers)
+    public unsafe void CheckPetRemoval(IDictionary<ulong, PetStruct> removalQueue, IDictionary<int, (uint characterEiD, uint petEiD)> activePlayers)
     {
         foreach (var removedPlayer in removalQueue)
         {

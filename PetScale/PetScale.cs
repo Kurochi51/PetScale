@@ -414,7 +414,7 @@ public sealed class PetScale : IDalamudPlugin
         {
             var tempPetDictionary = secondaryActivePetDictionary
                 .ToDictionary(entry => entry.Key, entry => (entry.Value.characterEiD, entry.Value.petEiD));
-            Utilities.CheckPetRemoval(removedPlayers, tempPetDictionary);
+            utilities.CheckPetRemoval(removedPlayers, tempPetDictionary);
             removedPlayers.Clear();
         }
     }
