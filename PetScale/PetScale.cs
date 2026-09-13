@@ -10,6 +10,7 @@ using System.Collections.Concurrent;
 using BattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using Character = FFXIVClientStructs.FFXIV.Client.Game.Character.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
+using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using Dalamud.Interface.Windowing;
 using FFXIVClientStructs.Interop;
@@ -564,7 +565,8 @@ public sealed class PetScale : IDalamudPlugin
 
     internal unsafe bool SetScale(Pointer<BattleChara> pet, in PetStruct userData, string petName)
     {
-        if (Utilities.summonerPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
+        if (Utilities.summonerPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId) 
+            || Utilities.beastmasterPetModelMap.ContainsValue((PetModel)pet.Value->ModelContainer.ModelCharaId))
         {
             var scale = userData.PetSize switch
             {
@@ -640,10 +642,14 @@ public sealed class PetScale : IDalamudPlugin
             }
             DevWindow.Print($"Pet: {petName->NameString} - Character: {charaName->NameString} - Scale: {petName->Scale} -  Set: {kvp.Value.petSet}");
         }
-        DevWindow.Print($"Vanilla pet size map count: {vanillaPetSizeMap.Count}");
-        foreach (var kvp in vanillaPetSizeMap)
+        var target = TargetSystem.Instance()->GetTargetObject();
+        if (target is not null)
         {
-            DevWindow.Print($"{kvp.Key} - {kvp.Value}");
+            var beast = CharacterManager.Instance()->LookupBattleCharaByEntityId(target->EntityId);
+            if (beast is not null)
+            {
+                DevWindow.Print($"Beast: {beast->NameString} - OwnerId: {beast->OwnerId} - Scale: {beast->Scale} - Model: {(PetModel)beast->ModelContainer.ModelCharaId}");
+            }
         }
         /*DevWindow.Print("Actor pair count: " + activePetDictionary.Count.ToString());
         foreach (var entry in petModelDic)
@@ -681,7 +687,7 @@ public sealed class PetScale : IDalamudPlugin
         }
         secondaryActivePetDictionary.Clear();
         PopulateDictionary();
-        Utilities.ResetPets(secondaryActivePetDictionary, config.PetData);
+        utilities.ResetPets(secondaryActivePetDictionary, config.PetData);
         secondaryActivePetDictionary.Clear();
     }
 

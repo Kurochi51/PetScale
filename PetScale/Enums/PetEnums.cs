@@ -123,7 +123,7 @@ public enum PetModel
     GarudaEgi = 417,
 
     // BST Pets 1-50
-    CuSith = 4868,
+    CuSith = 4867,
     Squirrel = 27,
     Lamb = 291,
     Pugil = 861,

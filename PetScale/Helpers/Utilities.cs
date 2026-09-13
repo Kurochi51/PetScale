@@ -459,7 +459,7 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         return true;
     }
 
-    public static unsafe void ResetPets(IDictionary<int, (uint characterEiD, uint petEiD, bool petSet)> activePets, IList<PetStruct> userData)
+    public unsafe void ResetPets(IDictionary<int, (uint characterEiD, uint petEiD, bool petSet)> activePets, IList<PetStruct> userData)
     {
         foreach (var pair in activePets.Values)
         {
