@@ -210,10 +210,19 @@ public sealed class PetScale : IDalamudPlugin
             // Maybe apply the string formating unconditionally?
             else if (Utilities.beastmasterPetMap.ContainsKey((PetRow)pet.RowId))
             {
-                petSizeMap.Add(Utilities.beastmasterPetMap[(PetRow)pet.RowId].normal, scales);
                 var name = pet.Name.GetText();
                 var petName = string.Concat(name.Select((c, i) => i == 0 || name[i - 1] is ' ' or '-' ? char.ToUpperInvariant(c) : c));
-                ConfigWindow.beastmasterPetMap.Add(petName, Utilities.beastmasterPetMap[(PetRow)pet.RowId].normal);
+                // Making the assumption that both normal and alternative appearance have the same sizes
+                foreach (var model in Utilities.beastmasterPetMap[(PetRow)pet.RowId])
+                {
+                    petSizeMap.Add(model, scales);
+                    if (model.ToString().EndsWith("_alt", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    ConfigWindow.beastmasterPetMap.Add(petName, model);
+                }
+
             }
         }
         // List of pet rows sorted by SCH pets, MCH pets, DRK pet, sub-90 SMN pets then in ascending order
@@ -469,6 +478,11 @@ public sealed class PetScale : IDalamudPlugin
             {
                 petSet = SetScale(pet, userData, petName);
             }
+            // Specific Alt Beast for Generic Character
+            if (Utilities.beastmasterAltPetMap.TryGetValue(userData.PetID, out var altModel) && altModel == modelType)
+            {
+                petSet = SetScale(pet, userData, petName);
+            }
         }
         for (var i = index + 1; i < config.PetData.Count; i++)
         {
@@ -482,18 +496,23 @@ public sealed class PetScale : IDalamudPlugin
             savePending = true;
             // Generic Beast for Specific Character
             if (allBeasts.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
-                && userData.PetID is PetModel.AllBeasts)
+                && userData.PetID is PetModel.AllBeasts && Utilities.beastmasterPetModels.Contains(modelType))
             {
                 petSet = SetScale(pet, userData, petName);
             }
             // Generic Pet for Specific Character
             if (allPets.Exists(item => item.CharacterName.Equals(userData.CharacterName, ordinalComparison))
-                && userData.PetID is PetModel.AllPets)
+                && userData.PetID is PetModel.AllPets && Utilities.summonerPetModelMap.ContainsValue(modelType))
             {
                 petSet = SetScale(pet, userData, petName);
             }
             // Specific Pet/Beast for Specific Character
             if (userData.PetID == modelType)
+            {
+                petSet = SetScale(pet, userData, petName);
+            }
+            // Specific Alt Beast for Specific Character
+            if (Utilities.beastmasterAltPetMap.TryGetValue(userData.PetID, out var altModel) && altModel == modelType)
             {
                 petSet = SetScale(pet, userData, petName);
             }
@@ -528,6 +547,11 @@ public sealed class PetScale : IDalamudPlugin
             {
                 petSet = SetScale(pet, userData, petName);
             }
+            // Specific Alt Beast for Generic Character
+            if (Utilities.beastmasterAltPetMap.TryGetValue(userData.PetID, out var altModel) && altModel == modelType)
+            {
+                petSet = SetScale(pet, userData, petName);
+            }
         }
         for (var i = index + 1; i < config.PetData.Count; i++)
         {
@@ -548,6 +572,14 @@ public sealed class PetScale : IDalamudPlugin
             }
             // Specific Pet/Beast for Specific Character
             if (userData.PetID == modelType)
+            {
+                petSet = SetScale(pet, userData, petName);
+            }
+            // Specific Alt Beast for Specific Character
+            // Size is applied equally for normal beasts and alt beasts, but internally only the normal beast PetModel is saved to keep it transparent to the user
+            // Therefor if the check above fails (eg. the beast on the field is an alt appearance), we check if there's an alternate version of the saved data
+            // and check that alternate version against the summoned beast
+            if (Utilities.beastmasterAltPetMap.TryGetValue(userData.PetID, out var altModel) && altModel == modelType)
             {
                 petSet = SetScale(pet, userData, petName);
             }

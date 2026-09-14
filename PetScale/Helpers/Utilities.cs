@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 
 using Lumina.Excel;
@@ -59,61 +60,62 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         { PetRow.SolarBahamut,  PetModel.SolarBahamut   },
     };
 
-    // This one can actually be built at runtime since SE is gracious enough to link back to a PetMirage entry with a ModelChara reference
-    // TODO: Revisit once excel sheets are updated in Evercold.
-    internal static Dictionary<PetRow, (PetModel normal, PetModel alt1)> beastmasterPetMap { get; } = new()
-    {
-        { PetRow.CuSith,            (PetModel.CuSith,           PetModel.CuSith_Alt)            },
-        { PetRow.Squirrel,          (PetModel.Squirrel,         PetModel.Squirrel_Alt)          },
-        { PetRow.Lamb,              (PetModel.Lamb,             PetModel.Lamb_Alt)              },
-        { PetRow.Pugil,             (PetModel.Pugil,            PetModel.Pugil_Alt)             },
-        { PetRow.Opo_Opo,           (PetModel.Opo_Opo,          PetModel.Opo_Opo_Alt)           },
-        { PetRow.Dodo,              (PetModel.Dodo,             PetModel.Dodo_Alt)              },
-        { PetRow.Coblyn,            (PetModel.Coblyn,           PetModel.Coblyn_Alt)            },
-        { PetRow.Diremite,          (PetModel.Diremite,         PetModel.Diremite_Alt)          },
-        { PetRow.Megalocrab,        (PetModel.Megalocrab,       PetModel.Megalocrab_Alt)        },
-        { PetRow.Wespe,             (PetModel.Wespe,            PetModel.Wespe_Alt)             },
-        { PetRow.Vulture,           (PetModel.Vulture,          PetModel.Vulture_Alt)           },
-        { PetRow.Mandragora,        (PetModel.Mandragora,       PetModel.Mandragora_Alt)        },
-        { PetRow.Geshunpest,        (PetModel.Geshunpest,       PetModel.Geshunpest_Alt)        },
-        { PetRow.Puk,               (PetModel.Puk,              PetModel.Puk_Alt)               },
-        { PetRow.Crab,              (PetModel.Crab,             PetModel.Crab_Alt)              },
-        { PetRow.Mantis,            (PetModel.Mantis,           PetModel.Mantis_Alt)            },
-        { PetRow.Slime,             (PetModel.Slime,            PetModel.Slime_Alt)             },
-        { PetRow.Dullahan,          (PetModel.Dullahan,         PetModel.Dullahan_Alt)          },
-        { PetRow.Bat,               (PetModel.Bat,              PetModel.Bat_Alt)               },
-        { PetRow.Flying_Trap,       (PetModel.Flying_Trap,      PetModel.Flying_Trap_Alt)       },
-        { PetRow.Ziz,               (PetModel.Ziz,              PetModel.Ziz_Alt)               },
-        { PetRow.Sabotender,        (PetModel.Sabotender,       PetModel.Sabotender_Alt)        },
-        { PetRow.Golem,             (PetModel.Golem,            PetModel.Golem_Alt)             },
-        { PetRow.Apkallu,           (PetModel.Apkallu,          PetModel.Apkallu_Alt)           },
-        { PetRow.Adamantoise,       (PetModel.Adamantoise,      PetModel.Adamantoise_Alt)       },
-        { PetRow.Buffalo,           (PetModel.Buffalo,          PetModel.Buffalo_Alt)           },
-        { PetRow.Uragnite,          (PetModel.Uragnite,         PetModel.Uragnite_Alt)          },
-        { PetRow.Worm,              (PetModel.Worm,             PetModel.Worm_Alt)              },
-        { PetRow.Spriggan,          (PetModel.Spriggan,         PetModel.Spriggan_Alt)          },
-        { PetRow.Goobbue,           (PetModel.Goobbue,          PetModel.Goobbue_Alt)           },
-        { PetRow.Gigantoad,         (PetModel.Gigantoad,        PetModel.Gigantoad_Alt)         },
-        { PetRow.Colibri,           (PetModel.Colibri,          PetModel.Colibri_Alt)           },
-        { PetRow.Coeurl,            (PetModel.Coeurl,           PetModel.Coeurl_Alt)            },
-        { PetRow.Raptor,            (PetModel.Raptor,           PetModel.Raptor_Alt)            },
-        { PetRow.Drake,             (PetModel.Drake,            PetModel.Drake_Alt)             },
-        { PetRow.Treant,            (PetModel.Treant,           PetModel.Treant_Alt)            },
-        { PetRow.Antling,           (PetModel.Antling,          PetModel.Antling_Alt)           },
-        { PetRow.Chimera,           (PetModel.Chimera,          PetModel.Chimera_Alt)           },
-        { PetRow.Morbol,            (PetModel.Morbol,           PetModel.Morbol_Alt)            },
-        { PetRow.Ghost,             (PetModel.Ghost,            PetModel.Ghost_Alt)             },
-        { PetRow.Salamander,        (PetModel.Salamander,       PetModel.Salamander_Alt)        },
-        { PetRow.Cobra,             (PetModel.Cobra,            PetModel.Cobra_Alt)             },
-        { PetRow.Hydra,             (PetModel.Hydra,            PetModel.Hydra_Alt)             },
-        { PetRow.Damselfly,         (PetModel.Damselfly,        PetModel.Damselfly_Alt)         },
-        { PetRow.Rotting_Goobbue,   (PetModel.Rotting_Goobbue,  PetModel.Rotting_Goobbue_Alt)   },
-        { PetRow.Zu,                (PetModel.Zu,               PetModel.Zu_Alt)                },
-        { PetRow.Ice_Golem,         (PetModel.Ice_Golem,        PetModel.Ice_Golem_Alt)         },
-        { PetRow.Karlabos,          (PetModel.Karlabos,         PetModel.Karlabos_Alt)          },
-        { PetRow.Rafflesia,         (PetModel.Rafflesia,        PetModel.Rafflesia_Alt)         },
-        { PetRow.Behemoth,          (PetModel.Behemoth,         PetModel.Behemoth_Alt)          },
-    };
+#pragma warning disable format
+    internal static FrozenDictionary<PetRow, FrozenSet<PetModel>> beastmasterPetMap { get; } =
+        new Dictionary<PetRow, FrozenSet<PetModel>>
+        {
+            [PetRow.CuSith]             =   [PetModel.CuSith,           PetModel.CuSith_Alt             ],
+            [PetRow.Squirrel]           =   [PetModel.Squirrel,         PetModel.Squirrel_Alt           ],
+            [PetRow.Lamb]               =   [PetModel.Lamb,             PetModel.Lamb_Alt               ],
+            [PetRow.Pugil]              =   [PetModel.Pugil,            PetModel.Pugil_Alt              ],
+            [PetRow.Opo_Opo]            =   [PetModel.Opo_Opo,          PetModel.Opo_Opo_Alt            ],
+            [PetRow.Dodo]               =   [PetModel.Dodo,             PetModel.Dodo_Alt               ],
+            [PetRow.Coblyn]             =   [PetModel.Coblyn,           PetModel.Coblyn_Alt             ],
+            [PetRow.Diremite]           =   [PetModel.Diremite,         PetModel.Diremite_Alt           ],
+            [PetRow.Megalocrab]         =   [PetModel.Megalocrab,       PetModel.Megalocrab_Alt         ],
+            [PetRow.Wespe]              =   [PetModel.Wespe,            PetModel.Wespe_Alt              ],
+            [PetRow.Vulture]            =   [PetModel.Vulture,          PetModel.Vulture_Alt            ],
+            [PetRow.Mandragora]         =   [PetModel.Mandragora,       PetModel.Mandragora_Alt         ],
+            [PetRow.Geshunpest]         =   [PetModel.Geshunpest,       PetModel.Geshunpest_Alt         ],
+            [PetRow.Puk]                =   [PetModel.Puk,              PetModel.Puk_Alt                ],
+            [PetRow.Crab]               =   [PetModel.Crab,             PetModel.Crab_Alt               ],
+            [PetRow.Mantis]             =   [PetModel.Mantis,           PetModel.Mantis_Alt             ],
+            [PetRow.Slime]              =   [PetModel.Slime,            PetModel.Slime_Alt              ],
+            [PetRow.Dullahan]           =   [PetModel.Dullahan,         PetModel.Dullahan_Alt           ],
+            [PetRow.Bat]                =   [PetModel.Bat,              PetModel.Bat_Alt                ],
+            [PetRow.Flying_Trap]        =   [PetModel.Flying_Trap,      PetModel.Flying_Trap_Alt        ],
+            [PetRow.Ziz]                =   [PetModel.Ziz,              PetModel.Ziz_Alt                ],
+            [PetRow.Sabotender]         =   [PetModel.Sabotender,       PetModel.Sabotender_Alt         ],
+            [PetRow.Golem]              =   [PetModel.Golem,            PetModel.Golem_Alt              ],
+            [PetRow.Apkallu]            =   [PetModel.Apkallu,          PetModel.Apkallu_Alt            ],
+            [PetRow.Adamantoise]        =   [PetModel.Adamantoise,      PetModel.Adamantoise_Alt        ],
+            [PetRow.Buffalo]            =   [PetModel.Buffalo,          PetModel.Buffalo_Alt            ],
+            [PetRow.Uragnite]           =   [PetModel.Uragnite,         PetModel.Uragnite_Alt           ],
+            [PetRow.Worm]               =   [PetModel.Worm,             PetModel.Worm_Alt               ],
+            [PetRow.Spriggan]           =   [PetModel.Spriggan,         PetModel.Spriggan_Alt           ],
+            [PetRow.Goobbue]            =   [PetModel.Goobbue,          PetModel.Goobbue_Alt            ],
+            [PetRow.Gigantoad]          =   [PetModel.Gigantoad,        PetModel.Gigantoad_Alt          ],
+            [PetRow.Colibri]            =   [PetModel.Colibri,          PetModel.Colibri_Alt            ],
+            [PetRow.Coeurl]             =   [PetModel.Coeurl,           PetModel.Coeurl_Alt             ],
+            [PetRow.Raptor]             =   [PetModel.Raptor,           PetModel.Raptor_Alt             ],
+            [PetRow.Drake]              =   [PetModel.Drake,            PetModel.Drake_Alt              ],
+            [PetRow.Treant]             =   [PetModel.Treant,           PetModel.Treant_Alt             ],
+            [PetRow.Antling]            =   [PetModel.Antling,          PetModel.Antling_Alt            ],
+            [PetRow.Chimera]            =   [PetModel.Chimera,          PetModel.Chimera_Alt            ],
+            [PetRow.Morbol]             =   [PetModel.Morbol,           PetModel.Morbol_Alt             ],
+            [PetRow.Ghost]              =   [PetModel.Ghost,            PetModel.Ghost_Alt              ],
+            [PetRow.Salamander]         =   [PetModel.Salamander,       PetModel.Salamander_Alt         ],
+            [PetRow.Cobra]              =   [PetModel.Cobra,            PetModel.Cobra_Alt              ],
+            [PetRow.Hydra]              =   [PetModel.Hydra,            PetModel.Hydra_Alt              ],
+            [PetRow.Damselfly]          =   [PetModel.Damselfly,        PetModel.Damselfly_Alt          ],
+            [PetRow.Rotting_Goobbue]    =   [PetModel.Rotting_Goobbue,  PetModel.Rotting_Goobbue_Alt    ],
+            [PetRow.Zu]                 =   [PetModel.Zu,               PetModel.Zu_Alt                 ],
+            [PetRow.Ice_Golem]          =   [PetModel.Ice_Golem,        PetModel.Ice_Golem_Alt          ],
+            [PetRow.Karlabos]           =   [PetModel.Karlabos,         PetModel.Karlabos_Alt           ],
+            [PetRow.Rafflesia]          =   [PetModel.Rafflesia,        PetModel.Rafflesia_Alt          ],
+            [PetRow.Behemoth]           =   [PetModel.Behemoth,         PetModel.Behemoth_Alt           ],
+        }.ToFrozenDictionary();
+#pragma warning restore format
 
     internal static Dictionary<PetRow, PetModel> customPetModelMap { get; } = new()
     {
@@ -133,7 +135,10 @@ public class Utilities(IDataManager _dataManager, IPluginLog _pluginLog, ClientL
         { PetRow.GarudaEgi,         PetModel.GarudaEgi          },
     };
 
-    internal static HashSet<PetModel> beastmasterPetModels = [.. beastmasterPetMap.Values.SelectMany(row => new[] { row.normal, row.alt1 })];
+    internal static FrozenSet<PetModel> beastmasterPetModels = [.. beastmasterPetMap.Values.SelectMany(model => model)];
+    internal static FrozenDictionary<PetModel, PetModel> beastmasterAltPetMap = beastmasterPetModels
+        .Where(model => !model.ToString().EndsWith("_Alt", StringComparison.OrdinalIgnoreCase) && Enum.TryParse<PetModel>($"{model}_Alt", out _))
+        .ToFrozenDictionary(model => model, model => Enum.Parse<PetModel>($"{model}_Alt"));
 
     /// <summary>
     ///     Attempt to retrieve an <see cref="ExcelSheet{T}"/>, optionally in a specific <paramref name="language"/>.
